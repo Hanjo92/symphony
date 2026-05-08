@@ -84,6 +84,9 @@ defmodule SymphonyElixir.CoreTest do
     assert {:error, {:invalid_workflow_config, message}} = Config.validate!()
     assert message =~ "codex.thread_sandbox"
 
+    write_workflow_file!(Workflow.workflow_file_path(), tracker_kind: "github", github_repo: "Hanjo92/symphony")
+    assert :ok = Config.validate!()
+
     write_workflow_file!(Workflow.workflow_file_path(), tracker_kind: "123")
     assert {:error, {:unsupported_tracker_kind, "123"}} = Config.validate!()
 
