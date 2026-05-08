@@ -7,7 +7,7 @@ defmodule SymphonyElixir.Orchestrator do
   require Logger
   import Bitwise, only: [<<<: 2]
 
-  alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace}
+  alias SymphonyElixir.{AgentRunner, Config, GitHubClient, StatusDashboard, Tracker, Workspace}
   alias SymphonyElixir.Linear.Issue
 
   @continuation_retry_delay_ms 1_000
@@ -38,7 +38,9 @@ defmodule SymphonyElixir.Orchestrator do
       claimed: MapSet.new(),
       retry_attempts: %{},
       codex_totals: nil,
-      codex_rate_limits: nil
+      codex_rate_limits: nil,
+      github_observability: nil,
+      github_next_refresh_at_ms: nil
     ]
   end
 
@@ -61,7 +63,9 @@ defmodule SymphonyElixir.Orchestrator do
       tick_timer_ref: nil,
       tick_token: nil,
       codex_totals: @empty_codex_totals,
-      codex_rate_limits: nil
+      codex_rate_limits: nil,
+      github_observability: nil,
+      github_next_refresh_at_ms: now_ms
     }
 
     run_terminal_workspace_cleanup()
@@ -109,6 +113,7 @@ defmodule SymphonyElixir.Orchestrator do
   def handle_info(:run_poll_cycle, state) do
     state = refresh_runtime_config(state)
     state = maybe_dispatch(state)
+    state = maybe_refresh_github_observability(state)
     state = schedule_tick(state, state.poll_interval_ms)
     state = %{state | poll_check_in_progress: false}
 
@@ -1146,6 +1151,7 @@ defmodule SymphonyElixir.Orchestrator do
        retrying: retrying,
        codex_totals: state.codex_totals,
        rate_limits: Map.get(state, :codex_rate_limits),
+       github: Map.get(state, :github_observability),
        polling: %{
          checking?: state.poll_check_in_progress == true,
          next_poll_in_ms: next_poll_in_ms(state.next_poll_due_at_ms, now_ms),
@@ -1333,6 +1339,54 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp apply_codex_rate_limits(state, _update), do: state
+
+  defp maybe_refresh_github_observability(%State{} = state) do
+    github = Config.settings!().github
+    now_ms = System.monotonic_time(:millisecond)
+
+    cond do
+      github.enabled != true ->
+        %{state | github_observability: nil, github_next_refresh_at_ms: nil}
+
+      is_integer(state.github_next_refresh_at_ms) and state.github_next_refresh_at_ms > now_ms ->
+        state
+
+      true ->
+        refreshed_state =
+          case github_client().fetch_observability(github) do
+            {:ok, github_observability} ->
+              %{state | github_observability: github_observability}
+
+            {:error, reason} ->
+              Logger.warning("GitHub observability refresh failed: #{inspect(reason)}")
+
+              %{
+                state
+                | github_observability: %{
+                    fetched_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+                    error: format_github_error(reason)
+                  }
+              }
+          end
+
+        %{refreshed_state | github_next_refresh_at_ms: now_ms + github.refresh_interval_ms}
+    end
+  end
+
+  defp github_client do
+    Application.get_env(:symphony_elixir, :github_client_module, GitHubClient)
+  end
+
+  defp format_github_error(:missing_github_repo), do: %{code: "missing_github_repo", message: "GitHub repo is not configured"}
+  defp format_github_error({:invalid_github_repo, _repo}), do: %{code: "invalid_github_repo", message: "GitHub repo must be owner/name"}
+
+  defp format_github_error({:http_error, status, _body}) do
+    %{code: "github_http_error", message: "GitHub API returned HTTP #{status}"}
+  end
+
+  defp format_github_error(reason) do
+    %{code: "github_refresh_failed", message: inspect(reason)}
+  end
 
   defp apply_token_delta(codex_totals, token_delta) do
     input_tokens = Map.get(codex_totals, :input_tokens, 0) + token_delta.input_tokens

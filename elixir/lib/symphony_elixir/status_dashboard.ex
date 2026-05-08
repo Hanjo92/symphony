@@ -317,6 +317,7 @@ defmodule SymphonyElixir.StatusDashboard do
              retrying: retrying,
              codex_totals: codex_totals,
              rate_limits: Map.get(snapshot, :rate_limits),
+             github: Map.get(snapshot, :github),
              polling: Map.get(snapshot, :polling)
            }},
           update_token_samples(token_samples, now_ms, total_tokens)
@@ -334,7 +335,7 @@ defmodule SymphonyElixir.StatusDashboard do
     case snapshot_data do
       {:ok, %{running: running, retrying: retrying, codex_totals: codex_totals} = snapshot} ->
         rate_limits = Map.get(snapshot, :rate_limits)
-        project_link_lines = format_project_link_lines()
+        project_link_lines = format_project_link_lines(Map.get(snapshot, :github))
         project_refresh_line = format_project_refresh_line(Map.get(snapshot, :polling))
         codex_input_tokens = Map.get(codex_totals, :input_tokens, 0)
         codex_output_tokens = Map.get(codex_totals, :output_tokens, 0)
@@ -383,7 +384,7 @@ defmodule SymphonyElixir.StatusDashboard do
           colorize("╭─ SYMPHONY STATUS", @ansi_bold),
           colorize("│ Orchestrator snapshot unavailable", @ansi_red),
           colorize("│ Throughput: ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
-          format_project_link_lines(),
+          format_project_link_lines(nil),
           format_project_refresh_line(nil),
           closing_border()
         ]
@@ -392,7 +393,7 @@ defmodule SymphonyElixir.StatusDashboard do
     end
   end
 
-  defp format_project_link_lines do
+  defp format_project_link_lines(github) do
     project_part =
       case Config.settings!().tracker.project_slug do
         project_slug when is_binary(project_slug) and project_slug != "" ->
@@ -404,12 +405,85 @@ defmodule SymphonyElixir.StatusDashboard do
 
     project_line = colorize("│ Project: ", @ansi_bold) <> project_part
 
+    repo_line =
+      case github_repo_url(github) do
+        url when is_binary(url) ->
+          colorize("│ Repo: ", @ansi_bold) <> colorize(url, @ansi_cyan)
+
+        _ ->
+          nil
+      end
+
+    github_line =
+      case format_github_summary(github) do
+        nil -> nil
+        summary -> colorize("│ GitHub: ", @ansi_bold) <> colorize(summary, @ansi_cyan)
+      end
+
+    lines = [project_line, repo_line, github_line] |> Enum.reject(&is_nil/1)
+
     case dashboard_url() do
       url when is_binary(url) ->
-        [project_line, colorize("│ Dashboard: ", @ansi_bold) <> colorize(url, @ansi_cyan)]
+        lines ++ [colorize("│ Dashboard: ", @ansi_bold) <> colorize(url, @ansi_cyan)]
 
       _ ->
-        [project_line]
+        lines
+    end
+  end
+
+  defp github_repo_url(%{repo: repo}) when is_map(repo) do
+    case Map.get(repo, :html_url) || Map.get(repo, "html_url") do
+      url when is_binary(url) and url != "" -> url
+      _ -> github_repo_url(nil)
+    end
+  end
+
+  defp github_repo_url(_github) do
+    case Config.settings!().github.repo do
+      repo when is_binary(repo) and repo != "" -> "https://github.com/#{repo}"
+      _ -> nil
+    end
+  end
+
+  defp format_github_summary(nil), do: nil
+
+  defp format_github_summary(%{error: error}) when is_map(error) do
+    Map.get(error, :message) || Map.get(error, "message") || "unavailable"
+  end
+
+  defp format_github_summary(%{counts: counts, workflows: workflows}) do
+    prs = map_value(counts, [:open_pull_requests, "open_pull_requests"])
+    issues = map_value(counts, [:open_issues, "open_issues"])
+
+    latest_workflow =
+      workflows
+      |> map_value([:recent, "recent"])
+      |> List.wrap()
+      |> List.first()
+
+    workflow_text =
+      case latest_workflow do
+        %{} = run ->
+          name = map_value(run, [:name, "name"]) || "workflow"
+          status = map_value(run, [:status, "status"]) || "unknown"
+          conclusion = map_value(run, [:conclusion, "conclusion"])
+          branch = map_value(run, [:head_branch, "head_branch"])
+          pieces = [name, status, conclusion, branch] |> Enum.filter(&(&1 not in [nil, ""]))
+          "latest #{Enum.join(pieces, " · ")}"
+
+        _ ->
+          nil
+      end
+
+    [
+      is_integer(prs) && "PRs #{format_count(prs)}",
+      is_integer(issues) && "Issues #{format_count(issues)}",
+      workflow_text
+    ]
+    |> Enum.reject(&(&1 in [nil, false]))
+    |> case do
+      [] -> nil
+      parts -> Enum.join(parts, " | ")
     end
   end
 
@@ -562,6 +636,7 @@ defmodule SymphonyElixir.StatusDashboard do
              retrying: retrying,
              codex_totals: codex_totals,
              rate_limits: Map.get(snapshot, :rate_limits),
+             github: Map.get(snapshot, :github),
              polling: Map.get(snapshot, :polling)
            }}
 

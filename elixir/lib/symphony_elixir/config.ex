@@ -128,6 +128,9 @@ defmodule SymphonyElixir.Config do
       settings.tracker.kind == "linear" and not is_binary(settings.tracker.project_slug) ->
         {:error, :missing_linear_project_slug}
 
+      settings.github.enabled == true and not is_binary(settings.github.repo) ->
+        {:error, :missing_github_repo}
+
       true ->
         :ok
     end

@@ -43,6 +43,7 @@ defmodule SymphonyElixir.TestSupport do
           Application.delete_env(:symphony_elixir, :server_port_override)
           Application.delete_env(:symphony_elixir, :memory_tracker_issues)
           Application.delete_env(:symphony_elixir, :memory_tracker_recipient)
+          Application.delete_env(:symphony_elixir, :github_client_module)
           File.rm_rf(workflow_root)
         end)
 
@@ -124,6 +125,12 @@ defmodule SymphonyElixir.TestSupport do
           observability_render_interval_ms: 16,
           server_port: nil,
           server_host: nil,
+          github_enabled: false,
+          github_api_url: nil,
+          github_token: nil,
+          github_repo: nil,
+          github_refresh_interval_ms: 60_000,
+          github_recent_workflow_runs: 5,
           prompt: @workflow_prompt
         ],
         overrides
@@ -161,6 +168,12 @@ defmodule SymphonyElixir.TestSupport do
     observability_render_interval_ms = Keyword.get(config, :observability_render_interval_ms)
     server_port = Keyword.get(config, :server_port)
     server_host = Keyword.get(config, :server_host)
+    github_enabled = Keyword.get(config, :github_enabled)
+    github_api_url = Keyword.get(config, :github_api_url)
+    github_token = Keyword.get(config, :github_token)
+    github_repo = Keyword.get(config, :github_repo)
+    github_refresh_interval_ms = Keyword.get(config, :github_refresh_interval_ms)
+    github_recent_workflow_runs = Keyword.get(config, :github_recent_workflow_runs)
     prompt = Keyword.get(config, :prompt)
 
     sections =
@@ -195,6 +208,7 @@ defmodule SymphonyElixir.TestSupport do
         hooks_yaml(hook_after_create, hook_before_run, hook_after_run, hook_before_remove, hook_timeout_ms),
         observability_yaml(observability_enabled, observability_refresh_ms, observability_render_interval_ms),
         server_yaml(server_port, server_host),
+        github_yaml(github_enabled, github_api_url, github_token, github_repo, github_refresh_interval_ms, github_recent_workflow_runs),
         "---",
         prompt
       ]
@@ -272,6 +286,20 @@ defmodule SymphonyElixir.TestSupport do
       "server:",
       port && "  port: #{yaml_value(port)}",
       host && "  host: #{yaml_value(host)}"
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+  end
+
+  defp github_yaml(enabled, api_url, token, repo, refresh_interval_ms, recent_workflow_runs) do
+    [
+      "github:",
+      "  enabled: #{yaml_value(enabled)}",
+      api_url && "  api_url: #{yaml_value(api_url)}",
+      "  token: #{yaml_value(token)}",
+      "  repo: #{yaml_value(repo)}",
+      "  refresh_interval_ms: #{yaml_value(refresh_interval_ms)}",
+      "  recent_workflow_runs: #{yaml_value(recent_workflow_runs)}"
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")

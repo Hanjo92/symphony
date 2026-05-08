@@ -86,6 +86,9 @@ defmodule SymphonyElixir.CoreTest do
 
     write_workflow_file!(Workflow.workflow_file_path(), tracker_kind: "123")
     assert {:error, {:unsupported_tracker_kind, "123"}} = Config.validate!()
+
+    write_workflow_file!(Workflow.workflow_file_path(), github_enabled: true, github_repo: nil)
+    assert {:error, :missing_github_repo} = Config.validate!()
   end
 
   test "current WORKFLOW.md file is valid and complete" do
@@ -133,6 +136,22 @@ defmodule SymphonyElixir.CoreTest do
     assert :ok = Config.validate!()
   end
 
+  test "linear project slug resolves from SYMPHONY_PROJECT_SLUG env var" do
+    previous_project_slug = System.get_env("SYMPHONY_PROJECT_SLUG")
+    env_project_slug = "real-project-slug"
+
+    on_exit(fn -> restore_env("SYMPHONY_PROJECT_SLUG", previous_project_slug) end)
+    System.put_env("SYMPHONY_PROJECT_SLUG", env_project_slug)
+
+    write_workflow_file!(Workflow.workflow_file_path(),
+      tracker_project_slug: "$SYMPHONY_PROJECT_SLUG",
+      codex_command: "/bin/sh app-server"
+    )
+
+    assert Config.settings!().tracker.project_slug == env_project_slug
+    assert :ok = Config.validate!()
+  end
+
   test "linear assignee resolves from LINEAR_ASSIGNEE env var" do
     previous_linear_assignee = System.get_env("LINEAR_ASSIGNEE")
     env_assignee = "dev@example.com"
@@ -147,6 +166,50 @@ defmodule SymphonyElixir.CoreTest do
     )
 
     assert Config.settings!().tracker.assignee == env_assignee
+  end
+
+  test "github token resolves from GITHUB_TOKEN env var" do
+    previous_github_token = System.get_env("GITHUB_TOKEN")
+    env_github_token = "github-token-from-env"
+
+    on_exit(fn -> restore_env("GITHUB_TOKEN", previous_github_token) end)
+    System.put_env("GITHUB_TOKEN", env_github_token)
+
+    write_workflow_file!(Workflow.workflow_file_path(),
+      github_enabled: true,
+      github_token: nil,
+      github_repo: "Hanjo92/symphony"
+    )
+
+    assert Config.settings!().github.token == env_github_token
+    assert Config.settings!().github.repo == "Hanjo92/symphony"
+    assert :ok = Config.validate!()
+  end
+
+  test "github token falls back to GH_TOKEN and repo from GITHUB_REPOSITORY" do
+    previous_github_token = System.get_env("GITHUB_TOKEN")
+    previous_gh_token = System.get_env("GH_TOKEN")
+    previous_github_repository = System.get_env("GITHUB_REPOSITORY")
+
+    on_exit(fn ->
+      restore_env("GITHUB_TOKEN", previous_github_token)
+      restore_env("GH_TOKEN", previous_gh_token)
+      restore_env("GITHUB_REPOSITORY", previous_github_repository)
+    end)
+
+    System.delete_env("GITHUB_TOKEN")
+    System.put_env("GH_TOKEN", "gh-token-from-env")
+    System.put_env("GITHUB_REPOSITORY", "Hanjo92/symphony")
+
+    write_workflow_file!(Workflow.workflow_file_path(),
+      github_enabled: true,
+      github_token: nil,
+      github_repo: nil
+    )
+
+    assert Config.settings!().github.token == "gh-token-from-env"
+    assert Config.settings!().github.repo == "Hanjo92/symphony"
+    assert :ok = Config.validate!()
   end
 
   test "workflow file path defaults to WORKFLOW.md in the current working directory when app env is unset" do

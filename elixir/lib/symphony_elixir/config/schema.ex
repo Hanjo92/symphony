@@ -261,6 +261,30 @@ defmodule SymphonyElixir.Config.Schema do
     end
   end
 
+  defmodule GitHub do
+    @moduledoc false
+    use Ecto.Schema
+    import Ecto.Changeset
+
+    @primary_key false
+    embedded_schema do
+      field(:enabled, :boolean, default: false)
+      field(:api_url, :string, default: "https://api.github.com")
+      field(:token, :string)
+      field(:repo, :string)
+      field(:refresh_interval_ms, :integer, default: 60_000)
+      field(:recent_workflow_runs, :integer, default: 5)
+    end
+
+    @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
+    def changeset(schema, attrs) do
+      schema
+      |> cast(attrs, [:enabled, :api_url, :token, :repo, :refresh_interval_ms, :recent_workflow_runs], empty_values: [])
+      |> validate_number(:refresh_interval_ms, greater_than: 0)
+      |> validate_number(:recent_workflow_runs, greater_than: 0)
+    end
+  end
+
   embedded_schema do
     embeds_one(:tracker, Tracker, on_replace: :update, defaults_to_struct: true)
     embeds_one(:polling, Polling, on_replace: :update, defaults_to_struct: true)
@@ -271,6 +295,7 @@ defmodule SymphonyElixir.Config.Schema do
     embeds_one(:hooks, Hooks, on_replace: :update, defaults_to_struct: true)
     embeds_one(:observability, Observability, on_replace: :update, defaults_to_struct: true)
     embeds_one(:server, Server, on_replace: :update, defaults_to_struct: true)
+    embeds_one(:github, GitHub, on_replace: :update, defaults_to_struct: true)
   end
 
   @spec parse(map()) :: {:ok, %__MODULE__{}} | {:error, {:invalid_workflow_config, String.t()}}
@@ -363,12 +388,18 @@ defmodule SymphonyElixir.Config.Schema do
     |> cast_embed(:hooks, with: &Hooks.changeset/2)
     |> cast_embed(:observability, with: &Observability.changeset/2)
     |> cast_embed(:server, with: &Server.changeset/2)
+    |> cast_embed(:github, with: &GitHub.changeset/2)
   end
 
   defp finalize_settings(settings) do
     tracker = %{
       settings.tracker
       | api_key: resolve_secret_setting(settings.tracker.api_key, System.get_env("LINEAR_API_KEY")),
+        project_slug:
+          resolve_secret_setting(
+            settings.tracker.project_slug,
+            System.get_env("SYMPHONY_PROJECT_SLUG")
+          ),
         assignee: resolve_secret_setting(settings.tracker.assignee, System.get_env("LINEAR_ASSIGNEE"))
     }
 
@@ -383,7 +414,17 @@ defmodule SymphonyElixir.Config.Schema do
         turn_sandbox_policy: normalize_optional_map(settings.codex.turn_sandbox_policy)
     }
 
-    %{settings | tracker: tracker, workspace: workspace, codex: codex}
+    github = %{
+      settings.github
+      | token:
+          resolve_secret_setting(
+            settings.github.token,
+            System.get_env("GITHUB_TOKEN") || System.get_env("GH_TOKEN")
+          ),
+        repo: resolve_secret_setting(settings.github.repo, System.get_env("GITHUB_REPOSITORY"))
+    }
+
+    %{settings | tracker: tracker, workspace: workspace, codex: codex, github: github}
   end
 
   defp normalize_keys(value) when is_map(value) do

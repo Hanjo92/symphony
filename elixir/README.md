@@ -80,6 +80,32 @@ Optional flags:
 - `--logs-root` tells Symphony to write logs under a different directory (default: `./log`)
 - `--port` also starts the Phoenix observability service (default: disabled)
 
+## Optional GitHub observability
+
+You can attach a GitHub repo to the observability dashboard/API so Symphony also shows:
+
+- repo metadata and default branch
+- open issue / PR counts
+- recent GitHub Actions workflow runs
+
+Add a `github:` block to your workflow config:
+
+```yaml
+github:
+  enabled: true
+  token: $GITHUB_TOKEN
+  repo: $GITHUB_REPOSITORY
+  refresh_interval_ms: 60000
+  recent_workflow_runs: 5
+```
+
+Notes:
+
+- `repo` must be `owner/name`.
+- `token` is optional for public repos, but recommended for private repos and higher rate limits.
+- `token` resolves from `GITHUB_TOKEN` first, then `GH_TOKEN` when omitted.
+- `repo` resolves from `GITHUB_REPOSITORY` when omitted.
+
 The `WORKFLOW.md` file uses YAML front matter for configuration, plus a Markdown body used as the
 Codex session prompt.
 

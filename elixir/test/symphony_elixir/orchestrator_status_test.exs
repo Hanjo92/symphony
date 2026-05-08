@@ -1054,6 +1054,34 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     assert checking_rendered =~ "checking now…"
   end
 
+  test "status dashboard renders GitHub repo link and summary when present" do
+    write_workflow_file!(Workflow.workflow_file_path(),
+      github_enabled: true,
+      github_repo: "Hanjo92/symphony"
+    )
+
+    snapshot_data =
+      {:ok,
+       %{
+         running: [],
+         retrying: [],
+         codex_totals: %{input_tokens: 0, output_tokens: 0, total_tokens: 0, seconds_running: 0},
+         rate_limits: nil,
+         github: %{
+           repo: %{html_url: "https://github.com/Hanjo92/symphony"},
+           counts: %{open_pull_requests: 3, open_issues: 7},
+           workflows: %{recent: [%{name: "CI", status: "completed", conclusion: "success", head_branch: "main"}]}
+         }
+       }}
+
+    rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
+
+    assert rendered =~ "https://github.com/Hanjo92/symphony"
+    assert rendered =~ "PRs 3"
+    assert rendered =~ "Issues 7"
+    assert rendered =~ "CI"
+  end
+
   test "status dashboard adds a spacer line before backoff queue when no agents are active" do
     snapshot_data =
       {:ok,

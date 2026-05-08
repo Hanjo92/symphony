@@ -117,6 +117,87 @@ defmodule SymphonyElixirWeb.DashboardLive do
           <pre class="code-panel"><%= pretty_value(@payload.rate_limits) %></pre>
         </section>
 
+        <%= if @payload[:github] do %>
+          <section class="section-card">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">GitHub</h2>
+                <p class="section-copy">Repo visibility, open work, and recent workflow activity.</p>
+              </div>
+            </div>
+
+            <%= if @payload.github[:error] do %>
+              <p class="empty-state">
+                <strong><%= @payload.github.error.code %>:</strong> <%= @payload.github.error.message %>
+              </p>
+            <% else %>
+              <div class="metric-grid" style="margin-top: 0;">
+                <article class="metric-card">
+                  <p class="metric-label">Repository</p>
+                  <p class="metric-value" style="font-size: 1.1rem;">
+                    <a href={get_in(@payload, [:github, :repo, :html_url])} target="_blank" rel="noreferrer">
+                      <%= get_in(@payload, [:github, :repo, :full_name]) || "n/a" %>
+                    </a>
+                  </p>
+                  <p class="metric-detail">
+                    <%= get_in(@payload, [:github, :repo, :visibility]) || "unknown" %>
+                    <%= if get_in(@payload, [:github, :repo, :default_branch]) do %>
+                      · default <%= get_in(@payload, [:github, :repo, :default_branch]) %>
+                    <% end %>
+                  </p>
+                </article>
+
+                <article class="metric-card">
+                  <p class="metric-label">Open PRs</p>
+                  <p class="metric-value numeric"><%= format_optional_int(get_in(@payload, [:github, :counts, :open_pull_requests])) %></p>
+                  <p class="metric-detail">Search-based count for open pull requests.</p>
+                </article>
+
+                <article class="metric-card">
+                  <p class="metric-label">Open issues</p>
+                  <p class="metric-value numeric"><%= format_optional_int(get_in(@payload, [:github, :counts, :open_issues])) %></p>
+                  <p class="metric-detail">Search-based count for open issues.</p>
+                </article>
+
+                <article class="metric-card">
+                  <p class="metric-label">Fetched</p>
+                  <p class="metric-value numeric"><%= get_in(@payload, [:github, :fetched_at]) || "n/a" %></p>
+                  <p class="metric-detail">Latest GitHub snapshot refresh time.</p>
+                </article>
+              </div>
+
+              <pre class="code-panel"><%= pretty_value(@payload.github.rate_limit) %></pre>
+
+              <%= if get_in(@payload, [:github, :workflows, :recent]) in [nil, []] do %>
+                <p class="empty-state">No recent workflow runs available.</p>
+              <% else %>
+                <div class="table-wrap">
+                  <table class="data-table" style="min-width: 760px; margin-top: 1rem;">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Branch</th>
+                        <th>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr :for={run <- get_in(@payload, [:github, :workflows, :recent])}>
+                        <td>
+                          <a href={run.html_url} target="_blank" rel="noreferrer"><%= run.name || "workflow" %></a>
+                        </td>
+                        <td><%= Enum.join(Enum.filter([run.status, run.conclusion], &(&1 not in [nil, ""])), " / ") %></td>
+                        <td><%= run.head_branch || "n/a" %></td>
+                        <td class="mono"><%= run.updated_at || run.created_at || "n/a" %></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              <% end %>
+            <% end %>
+          </section>
+        <% end %>
+
         <section class="section-card">
           <div class="section-header">
             <div>
@@ -308,6 +389,9 @@ defmodule SymphonyElixirWeb.DashboardLive do
   end
 
   defp format_int(_value), do: "n/a"
+
+  defp format_optional_int(value) when is_integer(value), do: format_int(value)
+  defp format_optional_int(_value), do: "n/a"
 
   defp state_badge_class(state) do
     base = "state-badge"
