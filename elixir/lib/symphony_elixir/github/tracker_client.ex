@@ -117,6 +117,9 @@ defmodule SymphonyElixir.GitHub.TrackerClient do
     state = derive_state(issue, desired_states)
 
     cond do
+      Map.has_key?(issue, "pull_request") ->
+        nil
+
       is_nil(state) ->
         nil
 

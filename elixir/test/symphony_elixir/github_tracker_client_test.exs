@@ -43,6 +43,24 @@ defmodule SymphonyElixir.GitHubTrackerClientTest do
     assert TrackerClient.normalize_issue_for_test(closed_issue, ["Todo", "Done", "Closed"]).state == "Closed"
   end
 
+  test "normalize_issue_for_test ignores pull requests returned by the issues api" do
+    write_workflow_file!(Workflow.workflow_file_path(), tracker_kind: "github", github_repo: "Hanjo92/symphony")
+
+    pull_request_issue = %{
+      "number" => 44,
+      "title" => "GH-43: GH-41: [Feature] Add useage",
+      "body" => "Automated Symphony follow-up for `GH-43`.",
+      "state" => "open",
+      "html_url" => "https://github.com/Hanjo92/symphony/pull/44",
+      "labels" => [],
+      "pull_request" => %{"url" => "https://api.github.com/repos/Hanjo92/symphony/pulls/44"},
+      "created_at" => "2026-05-08T00:00:00Z",
+      "updated_at" => "2026-05-08T01:00:00Z"
+    }
+
+    assert TrackerClient.normalize_issue_for_test(pull_request_issue, ["Todo", "Done"]) == nil
+  end
+
   test "fetches candidate issues, creates comments, and updates labels through GitHub" do
     Application.put_env(:symphony_elixir, :github_tracker_request_module, FakeReq)
 
@@ -57,6 +75,17 @@ defmodule SymphonyElixir.GitHubTrackerClientTest do
        %Req.Response{
          status: 200,
          body: [
+           %{
+             "number" => 44,
+             "title" => "GH-43: GH-41: [Feature] Add useage",
+             "body" => "Automated Symphony follow-up for `GH-43`.",
+             "state" => "open",
+             "html_url" => "https://github.com/Hanjo92/symphony/pull/44",
+             "labels" => [],
+             "pull_request" => %{"url" => "https://api.github.com/repos/Hanjo92/symphony/pulls/44"},
+             "created_at" => "2026-05-08T00:00:00Z",
+             "updated_at" => "2026-05-08T00:05:00Z"
+           },
            %{
              "number" => 1,
              "title" => "Todo issue",
