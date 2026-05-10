@@ -1,0 +1,6 @@
+[Unit]
+Description=Proxy Symphony nopilot dashboard
+
+[Service]
+ExecStart=/lib/systemd/systemd-socket-proxyd 127.0.0.1:4000
+PrivateNetwork=no

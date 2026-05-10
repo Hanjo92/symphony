@@ -1,0 +1,9 @@
+[Unit]
+Description=LAN listener for Symphony vibenobel dashboard
+
+[Socket]
+ListenStream=0.0.0.0:4021
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Symphony instance (%i)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.openclaw/workspace/symphony/elixir
+ExecStart=%h/.openclaw/workspace/symphony/elixir/scripts/run-instance.sh %i
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "repo-a",
+    "name": "Repo A",
+    "repo": "your-org/repo-a",
+    "localBaseUrl": "http://127.0.0.1:4000",
+    "publicBaseUrl": "http://192.168.0.10:4001",
+    "serviceName": "symphony@repo-a.service",
+    "workspaceRoot": "/home/your-user/.local/share/symphony/workspaces/repo-a",
+    "enabled": true
+  },
+  {
+    "id": "repo-b",
+    "name": "Repo B",
+    "repo": "your-org/repo-b",
+    "localBaseUrl": "http://127.0.0.1:4010",
+    "publicBaseUrl": "http://192.168.0.10:4011",
+    "serviceName": "symphony@repo-b.service",
+    "workspaceRoot": "/home/your-user/.local/share/symphony/workspaces/repo-b",
+    "enabled": true
+  }
+]

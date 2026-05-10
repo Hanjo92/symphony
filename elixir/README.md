@@ -134,6 +134,33 @@ How it works in the current implementation:
 
 See `WORKFLOW.github.local.md` for a local example.
 
+## Multi-instance local layout (example)
+
+If you want separate Symphony workers per repository, keep one workflow + env pair per instance and launch them through a small wrapper script.
+
+Example layout:
+
+```text
+elixir/
+  instances/
+    nopilot/
+      env.example
+      WORKFLOW.github.md
+    kis-auto-trader/
+      env.example
+      WORKFLOW.github.md
+  scripts/
+    run-instance.sh
+```
+
+The sample `scripts/run-instance.sh` wrapper loads `instances/<name>/` and starts Symphony with that instance's workflow, repo URL, workspace root, and dashboard port.
+
+Template user units for this pattern live under `../systemd/user/`:
+
+- `symphony@.service`
+- `symphony-dashboard-lan-*.socket`
+- `symphony-dashboard-lan-*.service`
+
 The `WORKFLOW.md` file uses YAML front matter for configuration, plus a Markdown body used as the
 Codex session prompt.
 
