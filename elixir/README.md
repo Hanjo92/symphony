@@ -206,6 +206,9 @@ Notes:
   identifier, title, and body.
 - Use `hooks.after_create` to bootstrap a fresh workspace. For a Git-backed repo, you can run
   `git clone ... .` there, along with any other setup commands you need.
+- `run-local.sh` and `scripts/run-instance.sh` now default `SYMPHONY_AUTOFINISH_SCRIPT` to
+  `scripts/workspace-after-run.sh`, so GitHub workflows can attach an `after_run` hook that stages,
+  commits, pushes, opens a PR, and moves the tracker label to `Done` after a successful agent turn.
 - If a hook needs `mise exec` inside a freshly cloned workspace, trust the repo config and fetch
   the project dependencies in `hooks.after_create` before invoking `mise` later from other hooks.
 - `tracker.api_key` reads from `LINEAR_API_KEY` when unset or when value is `$LINEAR_API_KEY`.

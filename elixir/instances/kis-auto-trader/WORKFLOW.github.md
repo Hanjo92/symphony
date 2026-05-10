@@ -18,6 +18,10 @@ workspace:
 hooks:
   after_create: |
     git clone --depth 1 "$SOURCE_REPO_URL" .
+  after_run: |
+    if [ -d .git ] && [ -n "${SYMPHONY_AUTOFINISH_SCRIPT:-}" ] && [ -x "${SYMPHONY_AUTOFINISH_SCRIPT}" ]; then
+      "${SYMPHONY_AUTOFINISH_SCRIPT}"
+    fi
   before_remove: |
     if [ -d .git ]; then
       git status --short || true
@@ -40,6 +44,16 @@ github:
 ---
 
 You are working on a GitHub tracker item `{{ issue.identifier }}`.
+
+Title: {{ issue.title }}
+URL: {{ issue.url }}
+
+Body:
+{% if issue.description %}
+{{ issue.description }}
+{% else %}
+No description provided.
+{% endif %}
 
 Treat GitHub labels as the tracker status source of truth.
 

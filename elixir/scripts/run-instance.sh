@@ -29,6 +29,10 @@ if [ -z "${CODEX_BIN:-}" ] && [ -d "$HOME/.nvm/versions/node" ]; then
   fi
 fi
 
+if [ -z "${SYMPHONY_AUTOFINISH_SCRIPT:-}" ]; then
+  export SYMPHONY_AUTOFINISH_SCRIPT="$PWD/scripts/workspace-after-run.sh"
+fi
+
 if [ -f "$INSTANCE_DIR/.env" ]; then
   # shellcheck disable=SC1090
   source "$INSTANCE_DIR/.env"
