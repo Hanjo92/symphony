@@ -14,6 +14,36 @@ function formatTimestamp(value) {
   return date.toLocaleString();
 }
 
+async function updateRepository(event, id) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const repositoryInput = form.querySelector("input[name=repository]");
+  const sourceRepoUrlInput = form.querySelector("input[name=sourceRepoUrl]");
+  const status = form.querySelector(".form-status");
+
+  status.textContent = "Saving...";
+
+  const response = await fetch(`/api/instances/${encodeURIComponent(id)}/repository`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      repository: repositoryInput.value.trim(),
+      sourceRepoUrl: sourceRepoUrlInput.value.trim()
+    })
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    status.textContent = payload.error || "Failed to save";
+    status.classList.add("error");
+    return;
+  }
+
+  status.textContent = "Saved and restarted.";
+  status.classList.remove("error");
+  await loadOverview();
+}
+
 async function loadOverview() {
   const response = await fetch("/api/instances");
   const data = await response.json();
@@ -36,6 +66,9 @@ async function loadOverview() {
 
   document.getElementById("instances").innerHTML = data.instances.map((item) => {
     const errorHtml = item.error ? `<p class="error">${escapeHtml(item.error)}</p>` : "";
+    const lockedReason = item.canReassignRepository ? "" : '<p class="muted small">Repository changes are only allowed when there are no running or retrying tickets.</p>';
+    const disabledAttr = item.canReassignRepository ? "" : "disabled";
+    const sourceRepoUrl = item.sourceRepoUrl || `https://github.com/${item.repo}.git`;
     return `
       <article class="card">
         <div class="card-top">
@@ -54,6 +87,22 @@ async function loadOverview() {
 
         ${errorHtml}
 
+        <form class="repo-form" data-instance-id="${encodeURIComponent(item.id)}">
+          <label>
+            <span>Repository</span>
+            <input type="text" name="repository" value="${escapeHtml(item.repo)}" ${disabledAttr} />
+          </label>
+          <label>
+            <span>Source repo URL</span>
+            <input type="text" name="sourceRepoUrl" value="${escapeHtml(sourceRepoUrl)}" ${disabledAttr} />
+          </label>
+          ${lockedReason}
+          <div class="repo-form-actions">
+            <button type="submit" ${disabledAttr}>Apply</button>
+            <span class="form-status muted small"></span>
+          </div>
+        </form>
+
         <div class="actions">
           <a href="/instance?id=${encodeURIComponent(item.id)}">detail</a>
           <a href="${escapeHtml(item.publicBaseUrl)}" target="_blank" rel="noreferrer">dashboard</a>
@@ -61,6 +110,17 @@ async function loadOverview() {
       </article>
     `;
   }).join("");
+
+  document.querySelectorAll(".repo-form").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      updateRepository(event, form.dataset.instanceId).catch((error) => {
+        console.error(error);
+        const status = form.querySelector(".form-status");
+        status.textContent = error.message || String(error);
+        status.classList.add("error");
+      });
+    });
+  });
 }
 
 loadOverview().catch((error) => {

@@ -90,6 +90,49 @@ body {
   margin-top: 12px;
 }
 
+.repo-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.repo-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.repo-form input {
+  border: 1px solid #2a2f3a;
+  border-radius: 8px;
+  background: #101319;
+  color: #e8ecf1;
+  padding: 10px 12px;
+}
+
+.repo-form input:disabled {
+  opacity: 0.6;
+}
+
+.repo-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.repo-form button {
+  border: 1px solid #2f6feb;
+  border-radius: 8px;
+  background: #1f6feb;
+  color: white;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.repo-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -137,6 +180,10 @@ pre {
 
 .error {
   color: #ff9b9b;
+}
+
+.small {
+  font-size: 12px;
 }
 
 .detail-card {

@@ -1,18 +1,23 @@
 import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFile as execFileCallback } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const WEB_DIR = path.join(ROOT, "web");
 const CONFIG_DIR = path.join(ROOT, "config");
+const ELIXIR_DIR = path.resolve(ROOT, "..", "elixir");
 const CONFIG_PATH = process.env.SYMPHONY_SUPERVISOR_CONFIG || path.join(CONFIG_DIR, "instances.json");
 const CONFIG_EXAMPLE_PATH = path.join(CONFIG_DIR, "instances.example.json");
 
 const PORT = Number(process.env.SYMPHONY_SUPERVISOR_PORT || 4090);
 const POLL_MS = Number(process.env.SYMPHONY_SUPERVISOR_POLL_MS || 5000);
 const FETCH_TIMEOUT_MS = Number(process.env.SYMPHONY_SUPERVISOR_FETCH_TIMEOUT_MS || 3000);
+
+const execFile = promisify(execFileCallback);
 
 let cache = {
   updatedAt: null,
@@ -31,6 +36,107 @@ async function readInstancesConfig() {
     const fallback = await fs.readFile(CONFIG_EXAMPLE_PATH, "utf8");
     return JSON.parse(fallback);
   }
+}
+
+async function writeInstancesConfig(instances) {
+  await fs.mkdir(CONFIG_DIR, { recursive: true });
+  await fs.writeFile(CONFIG_PATH, `${JSON.stringify(instances, null, 2)}\n`, "utf8");
+}
+
+function deriveInstanceEnvPath(config) {
+  return config.instanceEnvPath || path.join(ELIXIR_DIR, "instances", config.id, ".env");
+}
+
+function deriveInstanceEnvExamplePath(config) {
+  return path.join(ELIXIR_DIR, "instances", config.id, "env.example");
+}
+
+function hasActiveTicket(instance) {
+  return normalizeArray(instance.running).length > 0 || normalizeArray(instance.backoff).length > 0;
+}
+
+function inferSourceRepoUrl(repository) {
+  return `https://github.com/${repository}.git`;
+}
+
+function shellQuote(value) {
+  return JSON.stringify(String(value));
+}
+
+function upsertExport(content, key, value) {
+  const line = `export ${key}=${shellQuote(value)}`;
+  const pattern = new RegExp(`^export ${key}=.*$`, "m");
+  if (pattern.test(content)) {
+    return content.replace(pattern, line);
+  }
+
+  const trimmed = content.trimEnd();
+  return trimmed ? `${trimmed}\n${line}\n` : `${line}\n`;
+}
+
+async function ensureInstanceEnv(config) {
+  const envPath = deriveInstanceEnvPath(config);
+  try {
+    return { envPath, content: await fs.readFile(envPath, "utf8") };
+  } catch (error) {
+    if (!error || error.code !== "ENOENT") {
+      throw error;
+    }
+
+    const examplePath = deriveInstanceEnvExamplePath(config);
+    try {
+      const exampleContent = await fs.readFile(examplePath, "utf8");
+      return { envPath, content: exampleContent };
+    } catch {
+      return { envPath, content: "" };
+    }
+  }
+}
+
+async function saveInstanceEnv(config, repository, sourceRepoUrl) {
+  const { envPath, content } = await ensureInstanceEnv(config);
+  let next = content;
+  next = upsertExport(next, "GITHUB_REPOSITORY", repository);
+  next = upsertExport(next, "SOURCE_REPO_URL", sourceRepoUrl);
+  next = upsertExport(next, "SYMPHONY_WORKSPACE_ROOT", config.workspaceRoot);
+  const port = String(new URL(config.localBaseUrl).port || "");
+  if (port) {
+    next = upsertExport(next, "SYMPHONY_PORT", port);
+  }
+
+  await fs.mkdir(path.dirname(envPath), { recursive: true });
+  await fs.writeFile(envPath, next, "utf8");
+  return envPath;
+}
+
+async function restartInstanceService(serviceName) {
+  if (!serviceName) {
+    return { restarted: false, warning: "serviceName is not configured" };
+  }
+
+  try {
+    await execFile("systemctl", ["--user", "restart", serviceName]);
+    return { restarted: true, warning: null };
+  } catch (error) {
+    return {
+      restarted: false,
+      warning: error?.stderr?.trim() || error?.message || String(error)
+    };
+  }
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) {
+    return {};
+  }
+
+  return JSON.parse(raw);
 }
 
 async function fetchJson(url) {
@@ -54,9 +160,12 @@ function normalizeArray(value) {
 }
 
 function summarizeInstance(config, state, error = null) {
+  const instanceEnvPath = deriveInstanceEnvPath(config);
+
   if (!state) {
     return {
       ...config,
+      instanceEnvPath,
       reachable: false,
       status: config.enabled ? "down" : "disabled",
       activeAgents: 0,
@@ -64,6 +173,7 @@ function summarizeInstance(config, state, error = null) {
       openIssues: 0,
       running: [],
       backoff: [],
+      canReassignRepository: true,
       summary: null,
       error: error ? String(error.message || error) : "unreachable"
     };
@@ -77,6 +187,7 @@ function summarizeInstance(config, state, error = null) {
 
   return {
     ...config,
+    instanceEnvPath,
     reachable: true,
     status: backoffCount > 0 ? "degraded" : "running",
     activeAgents,
@@ -84,6 +195,7 @@ function summarizeInstance(config, state, error = null) {
     openIssues,
     running,
     backoff,
+    canReassignRepository: activeAgents === 0 && backoffCount === 0,
     summary: state,
     error: null
   };
@@ -166,8 +278,69 @@ const server = http.createServer(async (request, response) => {
     return sendJson(response, 200, cache);
   }
 
-  if (url.pathname.startsWith("/api/instances/")) {
-    const id = decodeURIComponent(url.pathname.split("/").pop() || "");
+  const repositoryMatch = url.pathname.match(/^\/api\/instances\/([^/]+)\/repository$/);
+  if (repositoryMatch) {
+    const id = decodeURIComponent(repositoryMatch[1] || "");
+    const instance = cache.instances.find((entry) => entry.id === id);
+
+    if (!instance) {
+      return sendJson(response, 404, { error: "not found" });
+    }
+
+    if (request.method !== "POST") {
+      return sendJson(response, 405, { error: "method not allowed" });
+    }
+
+    if (hasActiveTicket(instance)) {
+      return sendJson(response, 409, { error: "repository can only be changed when no ticket is running or queued for retry" });
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const repository = String(body.repository || "").trim();
+      const sourceRepoUrl = String(body.sourceRepoUrl || inferSourceRepoUrl(repository)).trim();
+
+      if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+        return sendJson(response, 400, { error: "repository must be in owner/name format" });
+      }
+
+      if (!/^https:\/\/github\.com\/.+/.test(sourceRepoUrl) && !/^git@github\.com:.+/.test(sourceRepoUrl)) {
+        return sendJson(response, 400, { error: "sourceRepoUrl must be a GitHub HTTPS or SSH URL" });
+      }
+
+      const configs = await readInstancesConfig();
+      const nextConfigs = configs.map((entry) => {
+        if (entry.id !== id) return entry;
+        return {
+          ...entry,
+          repo: repository,
+          sourceRepoUrl,
+          instanceEnvPath: deriveInstanceEnvPath(entry)
+        };
+      });
+
+      const updatedConfig = nextConfigs.find((entry) => entry.id === id);
+      const envPath = await saveInstanceEnv(updatedConfig, repository, sourceRepoUrl);
+      await writeInstancesConfig(nextConfigs);
+      const restartResult = await restartInstanceService(updatedConfig.serviceName);
+      await refreshCache();
+
+      const updatedInstance = cache.instances.find((entry) => entry.id === id);
+      return sendJson(response, 200, {
+        ok: true,
+        instance: updatedInstance,
+        envPath,
+        ...restartResult
+      });
+    } catch (error) {
+      console.error("Failed to update repository assignment:", error);
+      return sendJson(response, 500, { error: error.message || String(error) });
+    }
+  }
+
+  const instanceMatch = url.pathname.match(/^\/api\/instances\/([^/]+)$/);
+  if (instanceMatch) {
+    const id = decodeURIComponent(instanceMatch[1] || "");
     const instance = cache.instances.find((entry) => entry.id === id);
     if (!instance) {
       return sendJson(response, 404, { error: "not found" });
