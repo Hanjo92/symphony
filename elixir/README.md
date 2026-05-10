@@ -106,6 +106,34 @@ Notes:
 - `token` resolves from `GITHUB_TOKEN` first, then `GH_TOKEN` when omitted.
 - `repo` resolves from `GITHUB_REPOSITORY` when omitted.
 
+## GitHub tracker mode (experimental)
+
+Symphony can also treat GitHub issues / PRs as tracker items:
+
+```yaml
+tracker:
+  kind: github
+  active_states:
+    - Todo
+    - In Progress
+    - Rework
+  terminal_states:
+    - Done
+    - Closed
+    - Cancelled
+    - Canceled
+    - Duplicate
+```
+
+How it works in the current implementation:
+
+- state is inferred from labels matching the configured tracker state names
+- `update_issue_state` swaps only the configured state labels and preserves unrelated labels
+- terminal labels like `Done` also close the GitHub issue
+- non-terminal states reopen the issue when needed
+
+See `WORKFLOW.github.local.md` for a local example.
+
 The `WORKFLOW.md` file uses YAML front matter for configuration, plus a Markdown body used as the
 Codex session prompt.
 

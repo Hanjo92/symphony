@@ -1,19 +1,16 @@
 ---
 tracker:
-  kind: linear
-  api_key: $LINEAR_API_KEY
-  project_slug: $SYMPHONY_PROJECT_SLUG
+  kind: github
   active_states:
     - Todo
     - In Progress
-    - Merging
     - Rework
   terminal_states:
+    - Done
     - Closed
     - Cancelled
     - Canceled
     - Duplicate
-    - Done
 polling:
   interval_ms: 5000
 workspace:
@@ -42,13 +39,14 @@ github:
   recent_workflow_runs: 5
 ---
 
-You are working on a Linear ticket `{{ issue.identifier }}`.
+You are working on a GitHub tracker item `{{ issue.identifier }}`.
 
-Work only inside the provided workspace clone.
+Treat GitHub labels as the tracker status source of truth.
 
 Rules:
 1. Operate autonomously unless blocked by missing auth, permissions, or secrets.
 2. Do not ask a human for follow-up unless there is a real blocker.
 3. Validate changes before handoff.
 4. Keep one running workpad comment up to date.
-5. If blocked, write the blocker clearly in the workpad and move the issue according to workflow.
+5. When moving tracker state, update the matching GitHub label (`Todo`, `In Progress`, `Rework`, `Done`) and preserve unrelated labels.
+6. If blocked, write the blocker clearly in the workpad and move the item to the appropriate label/state.
