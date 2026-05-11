@@ -38,12 +38,46 @@ if [ -f "$INSTANCE_DIR/.env" ]; then
   source "$INSTANCE_DIR/.env"
 fi
 
-WORKFLOW_FILE="$INSTANCE_DIR/WORKFLOW.github.md"
+normalize_tracker_kind() {
+  case "${1:-github}" in
+    github|linear|memory)
+      printf '%s\n' "$1"
+      ;;
+    *)
+      printf 'github\n'
+      ;;
+  esac
+}
+
+TRACKER_KIND="$(normalize_tracker_kind "${SYMPHONY_TRACKER_KIND:-github}")"
+
+if [ -n "${SYMPHONY_WORKFLOW_FILE:-}" ]; then
+  case "$SYMPHONY_WORKFLOW_FILE" in
+    /*) WORKFLOW_FILE="$SYMPHONY_WORKFLOW_FILE" ;;
+    *) WORKFLOW_FILE="$PWD/$SYMPHONY_WORKFLOW_FILE" ;;
+  esac
+else
+  WORKFLOW_FILE="$INSTANCE_DIR/WORKFLOW.$TRACKER_KIND.md"
+fi
+
+if [ ! -f "$WORKFLOW_FILE" ]; then
+  echo "Missing workflow file: $WORKFLOW_FILE" >&2
+  exit 1
+fi
 
 : "${SOURCE_REPO_URL:?SOURCE_REPO_URL is required}"
-: "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
-: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 : "${SYMPHONY_WORKSPACE_ROOT:?SYMPHONY_WORKSPACE_ROOT is required}"
+
+case "$TRACKER_KIND" in
+  github)
+    : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
+    : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+    ;;
+  linear)
+    : "${LINEAR_API_KEY:?LINEAR_API_KEY is required}"
+    : "${SYMPHONY_PROJECT_SLUG:?SYMPHONY_PROJECT_SLUG is required}"
+    ;;
+esac
 
 mkdir -p "$SYMPHONY_WORKSPACE_ROOT"
 

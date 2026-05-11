@@ -2,6 +2,7 @@
   {
     "id": "repo-a",
     "name": "Repo A",
+    "trackerKind": "github",
     "repo": "your-org/repo-a",
     "localBaseUrl": "http://127.0.0.1:4000",
     "publicBaseUrl": "http://192.168.0.10:4001",
@@ -12,7 +13,10 @@
   {
     "id": "repo-b",
     "name": "Repo B",
+    "trackerKind": "linear",
     "repo": "your-org/repo-b",
+    "trackerProjectSlug": "your-linear-project",
+    "trackerAssignee": "dev@example.com",
     "localBaseUrl": "http://127.0.0.1:4010",
     "publicBaseUrl": "http://192.168.0.10:4011",
     "serviceName": "symphony@repo-b.service",
