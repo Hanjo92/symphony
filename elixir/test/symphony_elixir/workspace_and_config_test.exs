@@ -105,21 +105,31 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
     assert server["auth"] == %{"type" => "bearer", "env" => "TODOIST_API_KEY"}
 
     assert Enum.map(server["allowed_tools"], & &1["name"]) == [
+             "todoist_add_comments",
              "todoist_add_projects",
+             "todoist_add_reminders",
+             "todoist_add_sections",
              "todoist_add_tasks",
              "todoist_complete_tasks",
              "todoist_fetch_object",
+             "todoist_find_comments",
              "todoist_find_completed_tasks",
+             "todoist_find_project_collaborators",
              "todoist_find_projects",
+             "todoist_find_reminders",
+             "todoist_find_sections",
              "todoist_find_tasks",
              "todoist_find_tasks_by_date",
              "todoist_get_overview",
              "todoist_get_productivity_stats",
              "todoist_reschedule_tasks",
-      "todoist_uncomplete_tasks",
-      "todoist_update_projects",
-      "todoist_update_tasks"
-    ]
+             "todoist_uncomplete_tasks",
+             "todoist_update_comments",
+             "todoist_update_projects",
+             "todoist_update_reminders",
+             "todoist_update_sections",
+             "todoist_update_tasks"
+           ]
 
     assert Enum.find(server["allowed_tools"], &(&1["name"] == "todoist_find_tasks"))["remote_name"] ==
              "findTasks"

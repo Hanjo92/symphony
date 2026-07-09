@@ -169,6 +169,144 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
         }
       }
     },
+    "todoist_find_sections" => %{
+      "name" => "todoist_find_sections",
+      "remote_name" => "findSections",
+      "description" => "Find Todoist sections within a project or inbox context.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "projectId" => %{"type" => "string"},
+          "searchTerm" => %{"type" => "string"}
+        }
+      }
+    },
+    "todoist_add_sections" => %{
+      "name" => "todoist_add_sections",
+      "remote_name" => "addSections",
+      "description" => "Create Todoist sections.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["sections"],
+        "properties" => %{
+          "sections" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_update_sections" => %{
+      "name" => "todoist_update_sections",
+      "remote_name" => "updateSections",
+      "description" => "Update existing Todoist sections.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["sections"],
+        "properties" => %{
+          "sections" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_find_comments" => %{
+      "name" => "todoist_find_comments",
+      "remote_name" => "findComments",
+      "description" => "Find Todoist comments for a task, project, or specific comment id.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "taskId" => %{"type" => "string"},
+          "projectId" => %{"type" => "string"},
+          "commentId" => %{"type" => "string"}
+        }
+      }
+    },
+    "todoist_add_comments" => %{
+      "name" => "todoist_add_comments",
+      "remote_name" => "addComments",
+      "description" => "Create Todoist task or project comments.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["comments"],
+        "properties" => %{
+          "comments" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_update_comments" => %{
+      "name" => "todoist_update_comments",
+      "remote_name" => "updateComments",
+      "description" => "Update existing Todoist comments.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["comments"],
+        "properties" => %{
+          "comments" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_find_reminders" => %{
+      "name" => "todoist_find_reminders",
+      "remote_name" => "findReminders",
+      "description" => "Find Todoist reminders by task or reminder id.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "taskId" => %{"type" => "string"},
+          "reminderId" => %{"type" => "string"},
+          "locationReminderId" => %{"type" => "string"}
+        }
+      }
+    },
+    "todoist_add_reminders" => %{
+      "name" => "todoist_add_reminders",
+      "remote_name" => "addReminders",
+      "description" => "Create Todoist reminders for tasks.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["reminders"],
+        "properties" => %{
+          "reminders" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_update_reminders" => %{
+      "name" => "todoist_update_reminders",
+      "remote_name" => "updateReminders",
+      "description" => "Update existing Todoist reminders.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["reminders"],
+        "properties" => %{
+          "reminders" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_find_project_collaborators" => %{
+      "name" => "todoist_find_project_collaborators",
+      "remote_name" => "findProjectCollaborators",
+      "description" => "Find Todoist collaborators by project, name, or email.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "projectId" => %{"type" => "string"},
+          "searchTerm" => %{"type" => "string"}
+        }
+      }
+    },
     "todoist_get_overview" => %{
       "name" => "todoist_get_overview",
       "remote_name" => "getOverview",

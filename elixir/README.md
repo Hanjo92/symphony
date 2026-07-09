@@ -141,6 +141,16 @@ This Todoist provider preset currently exposes these Symphony-side tool names:
 - `todoist_find_projects`
 - `todoist_add_projects`
 - `todoist_update_projects`
+- `todoist_find_sections`
+- `todoist_add_sections`
+- `todoist_update_sections`
+- `todoist_find_comments`
+- `todoist_add_comments`
+- `todoist_update_comments`
+- `todoist_find_reminders`
+- `todoist_add_reminders`
+- `todoist_update_reminders`
+- `todoist_find_project_collaborators`
 - `todoist_get_overview`
 - `todoist_fetch_object`
 - `todoist_get_productivity_stats`
@@ -154,6 +164,14 @@ Notes:
   upstream Todoist MCP tool names like `findTasks`.
 - `auth.env` is resolved at runtime from the local environment. You can also pass
   `auth.token` directly, but an env var is safer for normal operation.
+- The hosted Todoist MCP commonly assumes an interactive OAuth-capable client. Symphony's current
+  bridge does not implement an OAuth browser dance, token refresh storage, or MCP elicitation-based
+  account linking.
+- In practice that means the most reliable current setup is still bearer auth via a pre-provisioned
+  token or some other already-resolved credential injection on the host.
+- If you want true end-user hosted MCP OAuth inside Symphony later, the missing pieces are:
+  persisted OAuth state, callback handling, token refresh, and a way to surface account-linking
+  prompts safely through Symphony/Codex.
 - The current bridge implements the minimal Streamable HTTP flow needed for `initialize`,
   `notifications/initialized`, and `tools/call`.
 

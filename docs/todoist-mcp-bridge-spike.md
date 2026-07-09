@@ -50,6 +50,30 @@ Operational details that matter for Symphony:
 - Todoist recommends batching task creation, with up to 25 tasks per call.
 - Rescheduling recurring tasks should use a reschedule-specific tool, not generic date mutation.
 
+## Hosted OAuth Constraints
+
+Todoist's hosted MCP is designed around clients that can complete an interactive OAuth flow.
+
+That matters because Symphony is not currently acting like ChatGPT or Claude Code in this respect:
+
+- it does not open a browser-based account-link flow
+- it does not persist OAuth sessions/tokens for MCP servers
+- it does not refresh hosted MCP OAuth credentials over time
+- it does not yet surface an MCP-specific account-linking UX back through the dashboard
+
+So there are two realistic modes today:
+
+1. Run Symphony with credentials that are already resolved on the host
+   - for example a bearer token injected through env/config
+2. Build a future hosted-OAuth layer in Symphony
+   - persisted token store
+   - callback URL / redirect handling
+   - refresh-token lifecycle
+   - safe operator approval / account-link prompts
+
+This is why the current Todoist provider implementation prefers `auth.env` / `auth.token` style
+configuration even though Todoist's hosted docs emphasize OAuth for interactive clients.
+
 ## Design Options
 
 ### Option A: Todoist-only internal dynamic tools
@@ -258,6 +282,15 @@ Tasks:
 
 - Add Todoist server config
 - Map Todoist tool specs into Symphony tool specs
+- Start with a curated alias set for common workflows:
+  - tasks
+  - projects
+  - sections
+  - comments
+  - reminders
+  - collaborator lookup
+- Keep explicit write-mode metadata on mutating tools
+- Defer full hosted-OAuth support to a later phase
 - Start with a conservative allowlist:
   - `findTasksByDate` or equivalent read/query tool
   - `addTasks`
@@ -320,4 +353,3 @@ The clean version is:
 - build a generic MCP bridge seam first
 - then plug Todoist into it as the first real provider
 - keep a strict allowlist and explicit write-aware approval posture
-

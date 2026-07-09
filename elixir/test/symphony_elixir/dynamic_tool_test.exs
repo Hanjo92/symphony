@@ -67,6 +67,12 @@ defmodule SymphonyElixir.Codex.DynamicToolTest do
                spec["server"] == "todoist" and
                spec["description"] =~ "Todoist tasks"
            end)
+
+    assert Enum.any?(DynamicTool.tool_specs(), fn spec ->
+             spec["name"] == "todoist_find_project_collaborators" and
+               spec["server"] == "todoist" and
+               spec["description"] =~ "collaborators"
+           end)
   end
 
   test "unsupported tools return a failure payload with the supported tool list" do
