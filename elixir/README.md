@@ -131,10 +131,19 @@ mcp:
 This Todoist provider preset currently exposes these Symphony-side tool names:
 
 - `todoist_find_tasks`
+- `todoist_find_tasks_by_date`
+- `todoist_find_completed_tasks`
 - `todoist_add_tasks`
+- `todoist_complete_tasks`
+- `todoist_uncomplete_tasks`
 - `todoist_update_tasks`
 - `todoist_reschedule_tasks`
 - `todoist_find_projects`
+- `todoist_add_projects`
+- `todoist_update_projects`
+- `todoist_get_overview`
+- `todoist_fetch_object`
+- `todoist_get_productivity_stats`
 
 Notes:
 

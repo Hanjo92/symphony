@@ -5,6 +5,11 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
 
   @default_url "https://ai.todoist.net/mcp"
   @default_transport "streamable_http"
+  @generic_object_schema %{"type" => "object", "additionalProperties" => true}
+  @generic_items_schema %{
+    "type" => "array",
+    "items" => %{"type" => "object", "additionalProperties" => true}
+  }
 
   @tool_presets %{
     "todoist_find_tasks" => %{
@@ -23,6 +28,36 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
         }
       }
     },
+    "todoist_find_tasks_by_date" => %{
+      "name" => "todoist_find_tasks_by_date",
+      "remote_name" => "findTasksByDate",
+      "description" => "Find Todoist tasks by date range, including today-style planning views.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "startDate" => %{"type" => "string"},
+          "endDate" => %{"type" => "string"},
+          "daysCount" => %{"type" => "integer"},
+          "limit" => %{"type" => "integer"}
+        }
+      }
+    },
+    "todoist_find_completed_tasks" => %{
+      "name" => "todoist_find_completed_tasks",
+      "remote_name" => "findCompletedTasks",
+      "description" => "Find recently completed Todoist tasks.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "since" => %{"type" => "string"},
+          "until" => %{"type" => "string"},
+          "projectId" => %{"type" => "string"},
+          "limit" => %{"type" => "integer"}
+        }
+      }
+    },
     "todoist_add_tasks" => %{
       "name" => "todoist_add_tasks",
       "remote_name" => "addTasks",
@@ -33,10 +68,35 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
         "additionalProperties" => true,
         "required" => ["tasks"],
         "properties" => %{
-          "tasks" => %{
-            "type" => "array",
-            "items" => %{"type" => "object", "additionalProperties" => true}
-          }
+          "tasks" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_complete_tasks" => %{
+      "name" => "todoist_complete_tasks",
+      "remote_name" => "completeTasks",
+      "description" => "Mark Todoist tasks as completed.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["taskIds"],
+        "properties" => %{
+          "taskIds" => %{"type" => "array", "items" => %{"type" => "string"}}
+        }
+      }
+    },
+    "todoist_uncomplete_tasks" => %{
+      "name" => "todoist_uncomplete_tasks",
+      "remote_name" => "uncompleteTasks",
+      "description" => "Reopen previously completed Todoist tasks.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["taskIds"],
+        "properties" => %{
+          "taskIds" => %{"type" => "array", "items" => %{"type" => "string"}}
         }
       }
     },
@@ -50,10 +110,7 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
         "additionalProperties" => true,
         "required" => ["tasks"],
         "properties" => %{
-          "tasks" => %{
-            "type" => "array",
-            "items" => %{"type" => "object", "additionalProperties" => true}
-          }
+          "tasks" => @generic_items_schema
         }
       }
     },
@@ -67,10 +124,7 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
         "additionalProperties" => true,
         "required" => ["tasks"],
         "properties" => %{
-          "tasks" => %{
-            "type" => "array",
-            "items" => %{"type" => "object", "additionalProperties" => true}
-          }
+          "tasks" => @generic_items_schema
         }
       }
     },
@@ -86,6 +140,67 @@ defmodule SymphonyElixir.Codex.McpProviders.Todoist do
           "archivedStatus" => %{"type" => "string"}
         }
       }
+    },
+    "todoist_add_projects" => %{
+      "name" => "todoist_add_projects",
+      "remote_name" => "addProjects",
+      "description" => "Create Todoist projects.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["projects"],
+        "properties" => %{
+          "projects" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_update_projects" => %{
+      "name" => "todoist_update_projects",
+      "remote_name" => "updateProjects",
+      "description" => "Update existing Todoist projects.",
+      "mode" => "write",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "required" => ["projects"],
+        "properties" => %{
+          "projects" => @generic_items_schema
+        }
+      }
+    },
+    "todoist_get_overview" => %{
+      "name" => "todoist_get_overview",
+      "remote_name" => "getOverview",
+      "description" => "Get a Markdown overview of a Todoist account or project.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => true,
+        "properties" => %{
+          "projectId" => %{"type" => "string"},
+          "includeCompleted" => %{"type" => "boolean"}
+        }
+      }
+    },
+    "todoist_fetch_object" => %{
+      "name" => "todoist_fetch_object",
+      "remote_name" => "fetchObject",
+      "description" => "Fetch a single Todoist task, project, comment, or section by id.",
+      "inputSchema" => %{
+        "type" => "object",
+        "additionalProperties" => false,
+        "required" => ["type", "id"],
+        "properties" => %{
+          "type" => %{"type" => "string"},
+          "id" => %{"type" => "string"}
+        }
+      }
+    },
+    "todoist_get_productivity_stats" => %{
+      "name" => "todoist_get_productivity_stats",
+      "remote_name" => "getProductivityStats",
+      "description" => "Get Todoist productivity statistics and karma trends.",
+      "inputSchema" => @generic_object_schema
     }
   }
 
