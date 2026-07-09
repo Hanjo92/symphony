@@ -40,6 +40,51 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
     end
   end
 
+  test "config normalizes MCP server definitions" do
+    write_workflow_file!(Workflow.workflow_file_path(),
+      mcp_servers: %{
+        " todoist " => %{
+          "transport" => " streamable_http ",
+          "url" => " https://ai.todoist.net/mcp ",
+          "allowed_tools" => [
+            " todoist_find_tasks ",
+            %{
+              "name" => " todoist_add_tasks ",
+              "description" => " Add tasks ",
+              "input_schema" => %{"type" => "object"},
+              "mode" => " write "
+            },
+            %{"name" => " "}
+          ]
+        }
+      }
+    )
+
+    assert Config.settings!().mcp.servers == %{
+             "todoist" => %{
+               "transport" => "streamable_http",
+               "url" => "https://ai.todoist.net/mcp",
+               "auth" => nil,
+               "allowed_tools" => [
+                 %{
+                   "name" => "todoist_find_tasks",
+                   "description" => "MCP bridged tool exposed by Symphony.",
+                   "inputSchema" => %{
+                     "type" => "object",
+                     "additionalProperties" => true
+                   }
+                 },
+                 %{
+                   "name" => "todoist_add_tasks",
+                   "description" => "Add tasks",
+                   "inputSchema" => %{"type" => "object"},
+                   "mode" => "write"
+                 }
+               ]
+             }
+           }
+  end
+
   test "workspace path is deterministic per issue identifier" do
     workspace_root =
       Path.join(

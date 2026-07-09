@@ -22,6 +22,36 @@ defmodule SymphonyElixir.Codex.DynamicToolTest do
     assert description =~ "Linear"
   end
 
+  test "tool_specs includes configured MCP bridge tools" do
+    write_workflow_file!(Workflow.workflow_file_path(),
+      mcp_servers: %{
+        "todoist" => %{
+          "transport" => "streamable_http",
+          "url" => "https://ai.todoist.net/mcp",
+          "allowed_tools" => [
+            %{
+              "name" => "todoist_find_tasks",
+              "description" => "Find Todoist tasks.",
+              "input_schema" => %{
+                "type" => "object",
+                "required" => ["query"],
+                "properties" => %{
+                  "query" => %{"type" => "string"}
+                }
+              }
+            }
+          ]
+        }
+      }
+    )
+
+    assert Enum.any?(DynamicTool.tool_specs(), fn spec ->
+             spec["name"] == "todoist_find_tasks" and
+               spec["server"] == "todoist" and
+               spec["description"] == "Find Todoist tasks."
+           end)
+  end
+
   test "unsupported tools return a failure payload with the supported tool list" do
     response = DynamicTool.execute("not_a_real_tool", %{})
 
@@ -40,6 +70,76 @@ defmodule SymphonyElixir.Codex.DynamicToolTest do
                "text" => response["output"]
              }
            ]
+  end
+
+  test "configured MCP bridge tools execute through the bridge executor" do
+    test_pid = self()
+
+    write_workflow_file!(Workflow.workflow_file_path(),
+      mcp_servers: %{
+        "todoist" => %{
+          "transport" => "streamable_http",
+          "url" => "https://ai.todoist.net/mcp",
+          "allowed_tools" => [
+            %{
+              "name" => "todoist_find_tasks",
+              "description" => "Find Todoist tasks."
+            }
+          ]
+        }
+      }
+    )
+
+    response =
+      DynamicTool.execute(
+        "todoist_find_tasks",
+        %{"query" => "today"},
+        mcp_executor: fn registration, arguments ->
+          send(test_pid, {:mcp_executor_called, registration, arguments})
+
+          {:ok, %{"items" => [%{"id" => "task-1", "content" => "Ship bridge spike"}]}}
+        end
+      )
+
+    assert_received {:mcp_executor_called,
+                     %{
+                       "server" => "todoist",
+                       "tool" => %{"name" => "todoist_find_tasks"}
+                     }, %{"query" => "today"}}
+
+    assert response["success"] == true
+
+    assert Jason.decode!(response["output"]) == %{
+             "items" => [%{"id" => "task-1", "content" => "Ship bridge spike"}]
+           }
+  end
+
+  test "configured MCP bridge tools format transport failures as tool failures" do
+    write_workflow_file!(Workflow.workflow_file_path(),
+      mcp_servers: %{
+        "todoist" => %{
+          "transport" => "streamable_http",
+          "url" => "https://ai.todoist.net/mcp",
+          "allowed_tools" => ["todoist_find_tasks"]
+        }
+      }
+    )
+
+    response =
+      DynamicTool.execute(
+        "todoist_find_tasks",
+        %{"query" => "overdue"},
+        mcp_executor: fn _registration, _arguments -> {:error, {:mcp_transport, :timeout}} end
+      )
+
+    assert response["success"] == false
+
+    assert Jason.decode!(response["output"]) == %{
+             "error" => %{
+               "message" => "MCP bridge transport failed for todoist:todoist_find_tasks.",
+               "reason" => ":timeout"
+             }
+           }
   end
 
   test "linear_graphql returns successful GraphQL responses as tool text" do
