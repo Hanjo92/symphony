@@ -111,6 +111,43 @@ Notes:
 - `token` resolves from `GITHUB_TOKEN` first, then `GH_TOKEN` when omitted.
 - `repo` resolves from `GITHUB_REPOSITORY` when omitted.
 
+## Optional Todoist MCP bridge
+
+Symphony can expose Todoist MCP-backed tools into Codex app-server turns through the dynamic tool
+bridge.
+
+Minimal example:
+
+```yaml
+mcp:
+  servers:
+    todoist:
+      provider: todoist
+      auth:
+        type: bearer
+        env: TODOIST_API_KEY
+```
+
+This Todoist provider preset currently exposes these Symphony-side tool names:
+
+- `todoist_find_tasks`
+- `todoist_add_tasks`
+- `todoist_update_tasks`
+- `todoist_reschedule_tasks`
+- `todoist_find_projects`
+
+Notes:
+
+- The provider defaults to Todoist's hosted MCP endpoint: `https://ai.todoist.net/mcp`
+- `provider: todoist` auto-populates the curated tool allowlist above when `allowed_tools` is
+  omitted.
+- Symphony exposes prefixed tool names such as `todoist_find_tasks`, then translates them to the
+  upstream Todoist MCP tool names like `findTasks`.
+- `auth.env` is resolved at runtime from the local environment. You can also pass
+  `auth.token` directly, but an env var is safer for normal operation.
+- The current bridge implements the minimal Streamable HTTP flow needed for `initialize`,
+  `notifications/initialized`, and `tools/call`.
+
 ## GitHub tracker mode (experimental)
 
 Symphony can also treat GitHub issues / PRs as tracker items:

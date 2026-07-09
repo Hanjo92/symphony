@@ -52,6 +52,23 @@ defmodule SymphonyElixir.Codex.DynamicToolTest do
            end)
   end
 
+  test "Todoist provider presets advertise default MCP bridge tools" do
+    write_workflow_file!(Workflow.workflow_file_path(),
+      mcp_servers: %{
+        "todoist" => %{
+          "provider" => "todoist",
+          "auth" => %{"type" => "bearer", "env" => "TODOIST_API_KEY"}
+        }
+      }
+    )
+
+    assert Enum.any?(DynamicTool.tool_specs(), fn spec ->
+             spec["name"] == "todoist_find_tasks" and
+               spec["server"] == "todoist" and
+               spec["description"] =~ "Todoist tasks"
+           end)
+  end
+
   test "unsupported tools return a failure payload with the supported tool list" do
     response = DynamicTool.execute("not_a_real_tool", %{})
 

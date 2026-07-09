@@ -3,7 +3,7 @@ defmodule SymphonyElixir.Codex.McpBridge do
   Executes MCP-backed tool calls through a pluggable bridge executor.
   """
 
-  alias SymphonyElixir.Codex.McpRegistry
+  alias SymphonyElixir.Codex.{McpHttpTransport, McpRegistry}
 
   @spec execute(String.t() | nil, term(), keyword()) :: map()
   def execute(tool_name, arguments, opts \\ []) do
@@ -27,7 +27,7 @@ defmodule SymphonyElixir.Codex.McpBridge do
     end
   end
 
-  defp default_executor(_registration, _arguments), do: {:error, :mcp_bridge_not_configured}
+  defp default_executor(registration, arguments), do: McpHttpTransport.call_tool(registration, arguments)
 
   defp success_response(payload), do: dynamic_tool_response(true, encode_payload(payload))
   defp failure_response(payload), do: dynamic_tool_response(false, encode_payload(payload))
@@ -64,6 +64,15 @@ defmodule SymphonyElixir.Codex.McpBridge do
       "error" => %{
         "message" => "MCP bridge transport failed for #{tool_identity(registration)}.",
         "reason" => inspect(reason)
+      }
+    }
+  end
+
+  defp tool_error_payload({:tool_error, payload}, registration) do
+    %{
+      "error" => %{
+        "message" => "MCP bridge tool returned an error for #{tool_identity(registration)}.",
+        "details" => payload
       }
     }
   end

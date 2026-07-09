@@ -82,7 +82,7 @@ defmodule SymphonyElixir.Codex.AppServer do
         opts \\ []
       ) do
     on_message = Keyword.get(opts, :on_message, &default_on_message/1)
-    dynamic_tool_opts = Keyword.take(opts, [:linear_client, :mcp_executor, :servers])
+    dynamic_tool_opts = Keyword.take(opts, [:linear_client, :mcp_executor, :mcp_http_request, :servers])
 
     tool_executor =
       Keyword.get(opts, :tool_executor, fn tool, arguments ->

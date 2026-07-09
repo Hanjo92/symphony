@@ -4,6 +4,7 @@ defmodule SymphonyElixir.Codex.McpRegistry do
   """
 
   alias SymphonyElixir.Config
+  alias SymphonyElixir.Codex.McpProviders.Todoist
 
   @default_input_schema %{
     "type" => "object",
@@ -39,7 +40,8 @@ defmodule SymphonyElixir.Codex.McpRegistry do
           {:ok,
            %{
              "server" => server_name,
-             "tool" => tool
+             "tool" => tool,
+             "server_config" => server_config
            }}
         else
           false
@@ -66,11 +68,22 @@ defmodule SymphonyElixir.Codex.McpRegistry do
   def normalize_servers(_servers), do: %{}
 
   defp normalize_server(server_config) do
-    server_config
-    |> Map.put("transport", normalize_optional_string(Map.get(server_config, "transport")))
-    |> Map.put("url", normalize_optional_string(Map.get(server_config, "url")))
-    |> Map.put("auth", normalize_optional_map(Map.get(server_config, "auth")))
-    |> Map.put("allowed_tools", normalize_allowed_tools(Map.get(server_config, "allowed_tools")))
+    normalized_allowed_tools = normalize_allowed_tools(Map.get(server_config, "allowed_tools"))
+
+    normalized_server =
+      server_config
+      |> Map.put("provider", normalize_optional_string(Map.get(server_config, "provider")))
+      |> Map.put("transport", normalize_optional_string(Map.get(server_config, "transport")))
+      |> Map.put("url", normalize_optional_string(Map.get(server_config, "url")))
+      |> Map.put("auth", normalize_optional_map(Map.get(server_config, "auth")))
+      |> Map.put("allowed_tools", normalized_allowed_tools)
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    case normalized_server["provider"] do
+      "todoist" -> Todoist.normalize_server(normalized_server, normalized_allowed_tools)
+      _ -> normalized_server
+    end
   end
 
   defp normalize_allowed_tools(nil), do: []

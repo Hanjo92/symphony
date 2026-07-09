@@ -64,7 +64,6 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
              "todoist" => %{
                "transport" => "streamable_http",
                "url" => "https://ai.todoist.net/mcp",
-               "auth" => nil,
                "allowed_tools" => [
                  %{
                    "name" => "todoist_find_tasks",
@@ -83,6 +82,38 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
                ]
              }
            }
+  end
+
+  test "config expands Todoist provider defaults and auth env wiring" do
+    write_workflow_file!(Workflow.workflow_file_path(),
+      mcp_servers: %{
+        "todoist" => %{
+          "provider" => "todoist",
+          "auth" => %{
+            "type" => "bearer",
+            "env" => "TODOIST_API_KEY"
+          }
+        }
+      }
+    )
+
+    server = Config.settings!().mcp.servers["todoist"]
+
+    assert server["provider"] == "todoist"
+    assert server["transport"] == "streamable_http"
+    assert server["url"] == "https://ai.todoist.net/mcp"
+    assert server["auth"] == %{"type" => "bearer", "env" => "TODOIST_API_KEY"}
+
+    assert Enum.map(server["allowed_tools"], & &1["name"]) == [
+             "todoist_add_tasks",
+             "todoist_find_projects",
+             "todoist_find_tasks",
+             "todoist_reschedule_tasks",
+             "todoist_update_tasks"
+           ]
+
+    assert Enum.find(server["allowed_tools"], &(&1["name"] == "todoist_find_tasks"))["remote_name"] ==
+             "findTasks"
   end
 
   test "workspace path is deterministic per issue identifier" do
