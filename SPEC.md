@@ -359,8 +359,10 @@ Fields:
 - `project_slug` (string)
   - REQUIRED for dispatch when `tracker.kind == "linear"`.
 - `required_labels` (list of strings)
-  - OPTIONAL.
-  - When non-empty, an issue is dispatch-eligible only if it contains all listed labels after lowercase normalization.
+  - Default: `[]`.
+  - An issue MUST contain every configured label to dispatch or continue.
+  - Matching ignores case and surrounding whitespace.
+  - A blank configured label matches no issue.
   - Implementations SHOULD also stop active runs if the label gate stops matching during reconciliation.
 - `active_states` (list of strings)
   - Default: `Todo`, `In Progress`
@@ -725,7 +727,8 @@ An issue is dispatch-eligible only if all are true:
 
 - It has `id`, `identifier`, `title`, and `state`.
 - Its state is in `active_states` and not in `terminal_states`.
-- If `tracker.required_labels` is configured, it includes all required labels.
+- It is routed to this worker by the configured assignee and contains every
+  label in `tracker.required_labels`.
 - It is not already in `running`.
 - It is not already in `claimed`.
 - Global concurrency slots are available.
@@ -1160,6 +1163,9 @@ Linear-specific requirements for `tracker.kind == "linear"`:
 - Auth token sent in `Authorization` header
 - `tracker.project_slug` maps to Linear project `slugId`
 - Candidate issue query filters project using `project: { slugId: { eq: $projectSlug } }`
+- Candidate and issue-state refresh queries include issue labels. Required
+  label filtering happens after normalization so refresh can observe label
+  removal and stop or release existing work.
 - Issue-state refresh query uses GraphQL issue IDs with variable type `[ID!]`
 - Pagination REQUIRED for candidate issues
 - Page size default: `50`
@@ -1178,6 +1184,8 @@ domain model in Section 4.
 Candidate issue normalization SHOULD produce fields listed in Section 4.1.1.
 
 Additional normalization details:
+
+- Label names are trimmed and lowercased.
 
 - `labels` -> lowercase strings
 - `blocked_by` -> derived from inverse relations where relation type is `blocks`
@@ -1287,6 +1295,7 @@ SHOULD return:
 - `running` (list of running session rows)
 - each running row SHOULD include `turn_count`
 - `retrying` (list of retry queue rows)
+- session and retry rows SHOULD include the tracker-provided issue URL when available
 - `codex_totals`
   - `input_tokens`
   - `output_tokens`
@@ -1406,6 +1415,7 @@ Minimum endpoints:
         {
           "issue_id": "abc123",
           "issue_identifier": "MT-649",
+          "issue_url": "https://tracker.example/issues/MT-649",
           "state": "In Progress",
           "session_id": "thread-1-turn-1",
           "turn_count": 7,
@@ -1424,6 +1434,7 @@ Minimum endpoints:
         {
           "issue_id": "def456",
           "issue_identifier": "MT-650",
+          "issue_url": "https://tracker.example/issues/MT-650",
           "attempt": 3,
           "due_at": "2026-02-24T20:16:00Z",
           "error": "no available orchestrator slots"

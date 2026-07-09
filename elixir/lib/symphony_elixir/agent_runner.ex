@@ -9,6 +9,14 @@ defmodule SymphonyElixir.AgentRunner do
 
   @type worker_host :: String.t() | nil
 
+  @doc false
+  @spec continue_with_issue_for_test(Issue.t(), ([String.t()] -> term())) ::
+          {:continue, Issue.t()} | {:done, Issue.t()} | {:error, term()}
+  def continue_with_issue_for_test(%Issue{} = issue, issue_state_fetcher)
+      when is_function(issue_state_fetcher, 1) do
+    continue_with_issue?(issue, issue_state_fetcher)
+  end
+
   @spec run(map(), pid() | nil, keyword()) :: :ok | no_return()
   def run(issue, codex_update_recipient \\ nil, opts \\ []) do
     # The orchestrator owns host retries so one worker lifetime never hops machines.
@@ -164,7 +172,7 @@ defmodule SymphonyElixir.AgentRunner do
   defp continue_with_issue?(issue, _issue_state_fetcher), do: {:done, issue}
 
   defp continue_issue?(%Issue{} = issue) do
-    active_issue_state?(issue.state) and issue_routable_to_worker?(issue) and issue_has_required_labels?(issue)
+    active_issue_state?(issue.state) and issue_routable?(issue)
   end
 
   defp continue_issue?(_issue), do: false
@@ -178,38 +186,9 @@ defmodule SymphonyElixir.AgentRunner do
 
   defp active_issue_state?(_state_name), do: false
 
-  defp issue_routable_to_worker?(%Issue{assigned_to_worker: assigned_to_worker})
-       when is_boolean(assigned_to_worker),
-       do: assigned_to_worker
-
-  defp issue_routable_to_worker?(_issue), do: true
-
-  defp issue_has_required_labels?(%Issue{labels: labels}) when is_list(labels) do
-    required_labels = Config.settings!().tracker.required_labels |> MapSet.new()
-
-    if MapSet.size(required_labels) == 0 do
-      true
-    else
-      issue_labels =
-        labels
-        |> Enum.map(&normalize_label/1)
-        |> Enum.reject(&is_nil/1)
-        |> MapSet.new()
-
-      MapSet.subset?(required_labels, issue_labels)
-    end
+  defp issue_routable?(%Issue{} = issue) do
+    Issue.routable?(issue, Config.settings!().tracker.required_labels)
   end
-
-  defp issue_has_required_labels?(_issue), do: Config.settings!().tracker.required_labels == []
-
-  defp normalize_label(label) when is_binary(label) do
-    case String.trim(label) do
-      "" -> nil
-      normalized -> String.downcase(normalized)
-    end
-  end
-
-  defp normalize_label(_label), do: nil
 
   defp selected_worker_host(nil, []), do: nil
 

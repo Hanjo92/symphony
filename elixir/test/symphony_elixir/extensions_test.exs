@@ -391,11 +391,12 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     assert state_payload == %{
              "generated_at" => state_payload["generated_at"],
-             "counts" => %{"running" => 1, "retrying" => 1},
+             "counts" => %{"running" => 1, "retrying" => 1, "blocked" => 1},
              "running" => [
                %{
                  "issue_id" => "issue-http",
                  "issue_identifier" => "MT-HTTP",
+                 "issue_url" => "https://example.org/issues/MT-HTTP",
                  "state" => "In Progress",
                  "worker_host" => nil,
                  "workspace_path" => nil,
@@ -412,11 +413,28 @@ defmodule SymphonyElixir.ExtensionsTest do
                %{
                  "issue_id" => "issue-retry",
                  "issue_identifier" => "MT-RETRY",
+                 "issue_url" => "https://example.org/issues/MT-RETRY",
                  "attempt" => 2,
                  "due_at" => state_payload["retrying"] |> List.first() |> Map.fetch!("due_at"),
                  "error" => "boom",
                  "worker_host" => nil,
                  "workspace_path" => nil
+               }
+             ],
+             "blocked" => [
+               %{
+                 "issue_id" => "issue-blocked",
+                 "issue_identifier" => "MT-BLOCKED",
+                 "issue_url" => "https://example.org/issues/MT-BLOCKED",
+                 "state" => "In Progress",
+                 "error" => "codex turn requires operator input",
+                 "worker_host" => "dm-dev2",
+                 "workspace_path" => "/workspaces/MT-BLOCKED",
+                 "session_id" => "thread-blocked",
+                 "blocked_at" => state_payload["blocked"] |> List.first() |> Map.fetch!("blocked_at"),
+                 "last_event" => "turn_input_required",
+                 "last_message" => "turn blocked: waiting for user input",
+                 "last_event_at" => state_payload["blocked"] |> List.first() |> Map.fetch!("last_event_at")
                }
              ],
              "codex_totals" => %{
@@ -454,6 +472,7 @@ defmodule SymphonyElixir.ExtensionsTest do
                "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12}
              },
              "retry" => nil,
+             "blocked" => nil,
              "logs" => %{"codex_session_logs" => []},
              "recent_events" => [],
              "last_error" => nil,
@@ -464,6 +483,18 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     assert %{"status" => "retrying", "retry" => %{"attempt" => 2, "error" => "boom"}} =
              json_response(conn, 200)
+
+    conn = get(build_conn(), "/api/v1/MT-BLOCKED")
+
+    assert %{
+             "status" => "blocked",
+             "last_error" => "codex turn requires operator input",
+             "blocked" => %{
+               "session_id" => "thread-blocked",
+               "state" => "In Progress",
+               "error" => "codex turn requires operator input"
+             }
+           } = json_response(conn, 200)
 
     conn = get(build_conn(), "/api/v1/MT-MISSING")
 
@@ -545,7 +576,11 @@ defmodule SymphonyElixir.ExtensionsTest do
     start_test_endpoint(orchestrator: orchestrator_name, snapshot_timeout_ms: 50)
 
     html = html_response(get(build_conn(), "/"), 200)
-    assert html =~ "/dashboard.css"
+    assert html =~ ~r|/dashboard\.css\?v=[0-9a-f]{12}|
+
+    assert html =~
+             ~r|<link rel="icon" type="image/png" sizes="128x128" href="/favicon\.png\?v=[0-9a-f]{12}">|
+
     assert html =~ "/vendor/phoenix_html/phoenix_html.js"
     assert html =~ "/vendor/phoenix/phoenix.js"
     assert html =~ "/vendor/phoenix_live_view/phoenix_live_view.js"
@@ -557,6 +592,11 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert dashboard_css =~ ".status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-offline"
+    assert dashboard_css =~ "text-decoration-thickness: 1px"
+
+    favicon_conn = get(build_conn(), "/favicon.png")
+    assert response(favicon_conn, 200) == File.read!("priv/static/favicon.png")
+    assert Plug.Conn.get_resp_header(favicon_conn, "content-type") == ["image/png; charset=utf-8"]
 
     phoenix_html_js = response(get(build_conn(), "/vendor/phoenix_html/phoenix_html.js"), 200)
     assert phoenix_html_js =~ "phoenix.link.click"
@@ -592,7 +632,13 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "Operations Dashboard"
     assert html =~ "MT-HTTP"
     assert html =~ "MT-RETRY"
+    assert html =~ "MT-BLOCKED"
+    assert html =~ ~s(href="https://example.org/issues/MT-HTTP")
+    assert html =~ ~s(href="https://example.org/issues/MT-RETRY")
+    assert html =~ ~s(href="https://example.org/issues/MT-BLOCKED")
+    assert html =~ ~s(aria-label="Open MT-HTTP in the issue tracker")
     assert html =~ "rendered"
+    assert html =~ "turn blocked: waiting for user input"
     assert html =~ "Runtime"
     assert html =~ "Live"
     assert html =~ "Offline"
@@ -610,6 +656,7 @@ defmodule SymphonyElixir.ExtensionsTest do
         %{
           issue_id: "issue-http",
           identifier: "MT-HTTP",
+          issue_url: "javascript:alert('nope')",
           state: "In Progress",
           session_id: "thread-http",
           turn_count: 8,
@@ -644,6 +691,8 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert_eventually(fn ->
       render(view) =~ "agent message content streaming: structured update"
     end)
+
+    refute render(view) =~ "javascript:alert"
   end
 
   test "dashboard liveview renders an unavailable state without crashing" do
@@ -691,7 +740,7 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     response = Req.get!("http://127.0.0.1:#{port}/api/v1/state")
     assert response.status == 200
-    assert response.body["counts"] == %{"running" => 1, "retrying" => 1}
+    assert response.body["counts"] == %{"running" => 1, "retrying" => 1, "blocked" => 1}
 
     dashboard_css = Req.get!("http://127.0.0.1:#{port}/dashboard.css")
     assert dashboard_css.status == 200
@@ -739,6 +788,7 @@ defmodule SymphonyElixir.ExtensionsTest do
         %{
           issue_id: "issue-http",
           identifier: "MT-HTTP",
+          issue_url: "https://example.org/issues/MT-HTTP",
           state: "In Progress",
           session_id: "thread-http",
           turn_count: 7,
@@ -756,9 +806,30 @@ defmodule SymphonyElixir.ExtensionsTest do
         %{
           issue_id: "issue-retry",
           identifier: "MT-RETRY",
+          issue_url: "https://example.org/issues/MT-RETRY",
           attempt: 2,
           due_in_ms: 2_000,
           error: "boom"
+        }
+      ],
+      blocked: [
+        %{
+          issue_id: "issue-blocked",
+          identifier: "MT-BLOCKED",
+          issue_url: "https://example.org/issues/MT-BLOCKED",
+          state: "In Progress",
+          error: "codex turn requires operator input",
+          worker_host: "dm-dev2",
+          workspace_path: "/workspaces/MT-BLOCKED",
+          session_id: "thread-blocked",
+          blocked_at: DateTime.utc_now(),
+          last_codex_event: :turn_input_required,
+          last_codex_message: %{
+            event: :turn_input_required,
+            message: %{"method" => "turn/input_required"},
+            timestamp: DateTime.utc_now()
+          },
+          last_codex_timestamp: DateTime.utc_now()
         }
       ],
       codex_totals: %{input_tokens: 4, output_tokens: 8, total_tokens: 12, seconds_running: 42.5},
