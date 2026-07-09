@@ -43,6 +43,13 @@ github:
   repo: $GITHUB_REPOSITORY
   refresh_interval_ms: 60000
   recent_workflow_runs: 5
+mcp:
+  servers:
+    todoist:
+      provider: todoist
+      auth:
+        type: bearer
+        env: TODOIST_API_KEY
 ---
 
 You are working on a GitHub tracker item `{{ issue.identifier }}`.
@@ -58,6 +65,8 @@ No description provided.
 {% endif %}
 
 Treat GitHub labels as the tracker status source of truth.
+
+Todoist MCP tools are also available when `TODOIST_API_KEY` is configured through the workflow.
 
 Rules:
 1. Operate autonomously unless blocked by missing auth, permissions, or secrets.
