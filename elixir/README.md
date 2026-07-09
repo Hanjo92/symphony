@@ -26,6 +26,11 @@ skills can make raw Linear GraphQL calls.
 If a claimed issue moves to a terminal state (`Done`, `Closed`, `Cancelled`, or `Duplicate`),
 Symphony stops the active agent for that issue and cleans up matching workspaces.
 
+If Codex reports that operator input, approval, or MCP elicitation is required, Symphony keeps the
+issue claimed and exposes it as blocked in the runtime state, JSON API, and dashboard. Blocked
+entries are in memory only; restarting the orchestrator clears that blocked map, so any still-active
+Linear issue can become a dispatch candidate again after restart.
+
 ## How to use it
 
 1. Make sure your codebase is set up to work well with agents: see
@@ -171,6 +176,8 @@ Minimal example:
 tracker:
   kind: linear
   project_slug: "..."
+  required_labels:
+    - symphony-approved
 workspace:
   root: ~/code/workspaces
 hooks:
@@ -191,6 +198,9 @@ Title: {{ issue.title }} Body: {{ issue.description }}
 Notes:
 
 - If a value is missing, defaults are used.
+- `tracker.required_labels` is optional. When set, an issue must have every
+  configured label to dispatch or continue running. Label matching ignores
+  case and surrounding whitespace. A blank configured label matches no issue.
 - Safer Codex defaults are used when policy fields are omitted:
   - `codex.approval_policy` defaults to `{"reject":{"sandbox_approval":true,"rules":true,"mcp_elicitations":true}}`
   - `codex.thread_sandbox` defaults to `workspace-write`
@@ -200,6 +210,9 @@ Notes:
 - When `codex.turn_sandbox_policy` is set explicitly, Symphony passes the map through to Codex
   unchanged. Compatibility then depends on the targeted Codex app-server version rather than local
   Symphony validation.
+- Workflows that run package managers or other commands that resolve external hosts should set
+  `networkAccess: true` in `codex.turn_sandbox_policy`; otherwise DNS/network access may be denied
+  by the Codex turn sandbox.
 - `agent.max_turns` caps how many back-to-back Codex turns Symphony will run in a single agent
   invocation when a turn completes normally but the issue is still in an active state. Default: `20`.
 - If the Markdown body is blank, Symphony uses a default prompt template that includes the issue
@@ -212,6 +225,7 @@ Notes:
 - If a hook needs `mise exec` inside a freshly cloned workspace, trust the repo config and fetch
   the project dependencies in `hooks.after_create` before invoking `mise` later from other hooks.
 - `tracker.api_key` reads from `LINEAR_API_KEY` when unset or when value is `$LINEAR_API_KEY`.
+- `tracker.required_labels` is optional. When set, Symphony only dispatches or continues issues that carry **all** listed labels. This is the cleanest way to require explicit human acceptance before work starts.
 - For path values, `~` is expanded to the home directory.
 - For env-backed path values, use `$VAR`. `workspace.root` resolves `$VAR` before path handling,
   while `codex.command` stays a shell command string and any `$VAR` expansion there happens in the
@@ -243,6 +257,7 @@ The observability UI now runs on a minimal Phoenix stack:
 - JSON API for operational debugging under `/api/v1/*`
 - Bandit as the HTTP server
 - Phoenix dependency static assets for the LiveView client bootstrap
+- Tracker issue identifiers link to the tracker-provided URL when it uses `http` or `https`
 
 ## Project Layout
 

@@ -1,6 +1,8 @@
 ---
 tracker:
   kind: github
+  required_labels:
+    - symphony-approved
   active_states:
     - Todo
     - In Progress

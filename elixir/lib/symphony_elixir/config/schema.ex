@@ -50,6 +50,7 @@ defmodule SymphonyElixir.Config.Schema do
       field(:api_key, :string)
       field(:project_slug, :string)
       field(:assignee, :string)
+      field(:required_labels, {:array, :string}, default: [])
       field(:active_states, {:array, :string}, default: ["Todo", "In Progress"])
       field(:terminal_states, {:array, :string}, default: ["Closed", "Cancelled", "Canceled", "Duplicate", "Done"])
     end
@@ -59,9 +60,10 @@ defmodule SymphonyElixir.Config.Schema do
       schema
       |> cast(
         attrs,
-        [:kind, :endpoint, :api_key, :project_slug, :assignee, :active_states, :terminal_states],
+        [:kind, :endpoint, :api_key, :project_slug, :assignee, :required_labels, :active_states, :terminal_states],
         empty_values: []
       )
+      |> update_change(:required_labels, &SymphonyElixir.Config.Schema.normalize_string_list/1)
     end
   end
 
@@ -356,6 +358,21 @@ defmodule SymphonyElixir.Config.Schema do
       Map.put(acc, normalize_issue_state(to_string(state_name)), limit)
     end)
   end
+
+  @doc false
+  @spec normalize_string_list(nil | [term()]) :: [String.t()]
+  def normalize_string_list(nil), do: []
+
+  def normalize_string_list(values) when is_list(values) do
+    values
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&String.downcase/1)
+    |> Enum.uniq()
+  end
+
+  def normalize_string_list(_values), do: []
 
   @doc false
   @spec validate_state_limits(Ecto.Changeset.t(), atom()) :: Ecto.Changeset.t()

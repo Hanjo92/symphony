@@ -11,7 +11,24 @@ function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+function buildDisplayTitle(item) {
+  if (item.repo) {
+    return `${item.name} · ${item.repo}`;
+  }
+  return item.name;
+}
+
+function hasActiveSettingsEdit() {
+  const active = document.activeElement;
+  if (!active) return false;
+  return Boolean(active.closest(".repo-form"));
+}
+
 async function loadDetail() {
+  if (hasActiveSettingsEdit()) {
+    return;
+  }
+
   const id = getQueryParam("id");
   if (!id) {
     document.getElementById("detail").innerHTML = '<p class="error">Missing instance id.</p>';
@@ -26,7 +43,9 @@ async function loadDetail() {
     return;
   }
 
-  document.getElementById("title").textContent = item.name;
+  const displayTitle = buildDisplayTitle(item);
+  document.getElementById("title").textContent = displayTitle;
+  document.title = displayTitle;
 
   const sourceRepoUrl = item.sourceRepoUrl || `https://github.com/${item.repo}.git`;
   const trackerProjectSlug = item.trackerProjectSlug || "";
@@ -53,6 +72,10 @@ async function loadDetail() {
       ${item.error ? `<p class="error"><strong>error:</strong> ${escapeHtml(item.error)}</p>` : ""}
 
       <form id="repo-form" class="repo-form" data-instance-id="${encodeURIComponent(item.id)}">
+        <label>
+          <span>Instance name</span>
+          <input type="text" name="name" value="${escapeHtml(item.name)}" ${disabledAttr} />
+        </label>
         <label>
           <span>Tracker</span>
           <select name="trackerKind" ${disabledAttr}>
@@ -98,6 +121,7 @@ async function loadDetail() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          name: form.querySelector("input[name=name]").value.trim(),
           repository: form.querySelector("input[name=repository]").value.trim(),
           sourceRepoUrl: form.querySelector("input[name=sourceRepoUrl]").value.trim(),
           trackerKind: form.querySelector("select[name=trackerKind]").value,

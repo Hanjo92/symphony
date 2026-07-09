@@ -388,11 +388,16 @@ const server = http.createServer(async (request, response) => {
 
     try {
       const body = await readJsonBody(request);
+      const name = String(body.name || instance.name || "").trim();
       const repository = String(body.repository || "").trim();
       const trackerKind = normalizeTrackerKind(String(body.trackerKind || instance.trackerKind || "github").trim());
       const sourceRepoUrl = String(body.sourceRepoUrl || inferSourceRepoUrl(repository)).trim();
       const trackerProjectSlug = String(body.trackerProjectSlug || "").trim();
       const trackerAssignee = String(body.trackerAssignee || "").trim();
+
+      if (!name) {
+        return sendJson(response, 400, { error: "name is required" });
+      }
 
       if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
         return sendJson(response, 400, { error: "repository must be in owner/name format" });
@@ -415,6 +420,7 @@ const server = http.createServer(async (request, response) => {
         if (entry.id !== id) return entry;
         return {
           ...entry,
+          name,
           repo: repository,
           trackerKind,
           trackerProjectSlug: trackerKind === "linear" ? trackerProjectSlug : undefined,
