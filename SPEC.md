@@ -358,6 +358,10 @@ Fields:
   - If `$VAR_NAME` resolves to an empty string, treat the key as missing.
 - `project_slug` (string)
   - REQUIRED for dispatch when `tracker.kind == "linear"`.
+- `required_labels` (list of strings)
+  - OPTIONAL.
+  - When non-empty, an issue is dispatch-eligible only if it contains all listed labels after lowercase normalization.
+  - Implementations SHOULD also stop active runs if the label gate stops matching during reconciliation.
 - `active_states` (list of strings)
   - Default: `Todo`, `In Progress`
 - `terminal_states` (list of strings)
@@ -574,6 +578,7 @@ not require recognizing or validating extension fields unless that extension is 
 - `tracker.endpoint`: string, default `https://api.linear.app/graphql` when `tracker.kind=linear`
 - `tracker.api_key`: string or `$VAR`, canonical env `LINEAR_API_KEY` when `tracker.kind=linear`
 - `tracker.project_slug`: string, REQUIRED when `tracker.kind=linear`
+- `tracker.required_labels`: list of strings, default `[]`
 - `tracker.active_states`: list of strings, default `["Todo", "In Progress"]`
 - `tracker.terminal_states`: list of strings, default `["Closed", "Cancelled", "Canceled", "Duplicate", "Done"]`
 - `polling.interval_ms`: integer, default `30000`
@@ -720,6 +725,7 @@ An issue is dispatch-eligible only if all are true:
 
 - It has `id`, `identifier`, `title`, and `state`.
 - Its state is in `active_states` and not in `terminal_states`.
+- If `tracker.required_labels` is configured, it includes all required labels.
 - It is not already in `running`.
 - It is not already in `claimed`.
 - Global concurrency slots are available.

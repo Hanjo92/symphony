@@ -14,9 +14,23 @@ function formatTimestamp(value) {
   return date.toLocaleString();
 }
 
+function buildDisplayTitle(item) {
+  if (item.repo) {
+    return `${item.name} · ${item.repo}`;
+  }
+  return item.name;
+}
+
+function hasActiveSettingsEdit() {
+  const active = document.activeElement;
+  if (!active) return false;
+  return Boolean(active.closest(".repo-form"));
+}
+
 async function updateInstanceSettings(event, id) {
   event.preventDefault();
   const form = event.currentTarget;
+  const nameInput = form.querySelector("input[name=name]");
   const repositoryInput = form.querySelector("input[name=repository]");
   const sourceRepoUrlInput = form.querySelector("input[name=sourceRepoUrl]");
   const trackerKindInput = form.querySelector("select[name=trackerKind]");
@@ -30,6 +44,7 @@ async function updateInstanceSettings(event, id) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      name: nameInput.value.trim(),
       repository: repositoryInput.value.trim(),
       sourceRepoUrl: sourceRepoUrlInput.value.trim(),
       trackerKind: trackerKindInput.value,
@@ -51,6 +66,10 @@ async function updateInstanceSettings(event, id) {
 }
 
 async function loadOverview() {
+  if (hasActiveSettingsEdit()) {
+    return;
+  }
+
   const response = await fetch("/api/instances");
   const data = await response.json();
 
@@ -84,7 +103,7 @@ async function loadOverview() {
       <article class="card">
         <div class="card-top">
           <div>
-            <h2>${escapeHtml(item.name)}</h2>
+            <h2>${escapeHtml(buildDisplayTitle(item))}</h2>
             <p class="repo">${escapeHtml(item.repo)}</p>
             <p class="muted small">tracker: <strong>${escapeHtml(item.trackerLabel || item.trackerKind || "GitHub")}</strong>${item.trackerTarget ? ` · ${escapeHtml(trackerTargetLabel)} ${escapeHtml(item.trackerTarget)}` : ""}</p>
           </div>
@@ -101,6 +120,10 @@ async function loadOverview() {
         ${errorHtml}
 
         <form class="repo-form" data-instance-id="${encodeURIComponent(item.id)}">
+          <label>
+            <span>Instance name</span>
+            <input type="text" name="name" value="${escapeHtml(item.name)}" ${disabledAttr} />
+          </label>
           <label>
             <span>Tracker</span>
             <select name="trackerKind" ${disabledAttr}>

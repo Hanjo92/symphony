@@ -171,6 +171,8 @@ Minimal example:
 tracker:
   kind: linear
   project_slug: "..."
+  required_labels:
+    - symphony-approved
 workspace:
   root: ~/code/workspaces
 hooks:
@@ -212,6 +214,7 @@ Notes:
 - If a hook needs `mise exec` inside a freshly cloned workspace, trust the repo config and fetch
   the project dependencies in `hooks.after_create` before invoking `mise` later from other hooks.
 - `tracker.api_key` reads from `LINEAR_API_KEY` when unset or when value is `$LINEAR_API_KEY`.
+- `tracker.required_labels` is optional. When set, Symphony only dispatches or continues issues that carry **all** listed labels. This is the cleanest way to require explicit human acceptance before work starts.
 - For path values, `~` is expanded to the home directory.
 - For env-backed path values, use `$VAR`. `workspace.root` resolves `$VAR` before path handling,
   while `codex.command` stays a shell command string and any `$VAR` expansion there happens in the

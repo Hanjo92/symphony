@@ -361,6 +361,11 @@ defmodule SymphonyElixir.Orchestrator do
 
         terminate_running_issue(state, issue.id, false)
 
+      !issue_has_required_labels?(issue) ->
+        Logger.info("Issue no longer matches required label gate: #{issue_context(issue)} labels=#{inspect(issue.labels)}; stopping active agent")
+
+        terminate_running_issue(state, issue.id, false)
+
       active_issue_state?(issue.state, active_states) ->
         refresh_running_issue_state(state, issue)
 
@@ -605,6 +610,7 @@ defmodule SymphonyElixir.Orchestrator do
        )
        when is_binary(id) and is_binary(identifier) and is_binary(title) and is_binary(state_name) do
     issue_routable_to_worker?(issue) and
+      issue_has_required_labels?(issue) and
       active_issue_state?(state_name, active_states) and
       !terminal_issue_state?(state_name, terminal_states)
   end
@@ -616,6 +622,24 @@ defmodule SymphonyElixir.Orchestrator do
        do: assigned_to_worker
 
   defp issue_routable_to_worker?(_issue), do: true
+
+  defp issue_has_required_labels?(%Issue{labels: labels}) when is_list(labels) do
+    required_labels = required_label_set()
+
+    if MapSet.size(required_labels) == 0 do
+      true
+    else
+      issue_labels =
+        labels
+        |> Enum.map(&normalize_label/1)
+        |> Enum.reject(&is_nil/1)
+        |> MapSet.new()
+
+      MapSet.subset?(required_labels, issue_labels)
+    end
+  end
+
+  defp issue_has_required_labels?(_issue), do: MapSet.size(required_label_set()) == 0
 
   defp todo_issue_blocked_by_non_terminal?(
          %Issue{state: issue_state, blocked_by: blockers},
@@ -661,6 +685,22 @@ defmodule SymphonyElixir.Orchestrator do
     |> Enum.filter(&(&1 != ""))
     |> MapSet.new()
   end
+
+  defp required_label_set do
+    Config.settings!().tracker.required_labels
+    |> Enum.map(&normalize_label/1)
+    |> Enum.reject(&is_nil/1)
+    |> MapSet.new()
+  end
+
+  defp normalize_label(label) when is_binary(label) do
+    case String.trim(label) do
+      "" -> nil
+      normalized -> String.downcase(normalized)
+    end
+  end
+
+  defp normalize_label(_label), do: nil
 
   defp dispatch_issue(%State{} = state, issue, attempt \\ nil, preferred_worker_host \\ nil) do
     case revalidate_issue_for_dispatch(issue, &Tracker.fetch_issue_states_by_ids/1, terminal_state_set()) do
