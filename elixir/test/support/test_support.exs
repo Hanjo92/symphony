@@ -134,6 +134,7 @@ defmodule SymphonyElixir.TestSupport do
           github_repo: nil,
           github_refresh_interval_ms: 60_000,
           github_recent_workflow_runs: 5,
+          mcp_servers: nil,
           prompt: @workflow_prompt
         ],
         overrides
@@ -178,6 +179,7 @@ defmodule SymphonyElixir.TestSupport do
     github_repo = Keyword.get(config, :github_repo)
     github_refresh_interval_ms = Keyword.get(config, :github_refresh_interval_ms)
     github_recent_workflow_runs = Keyword.get(config, :github_recent_workflow_runs)
+    mcp_servers = Keyword.get(config, :mcp_servers)
     prompt = Keyword.get(config, :prompt)
 
     sections =
@@ -214,6 +216,7 @@ defmodule SymphonyElixir.TestSupport do
         observability_yaml(observability_enabled, observability_refresh_ms, observability_render_interval_ms),
         server_yaml(server_port, server_host),
         github_yaml(github_enabled, github_api_url, github_token, github_repo, github_refresh_interval_ms, github_recent_workflow_runs),
+        mcp_yaml(mcp_servers),
         "---",
         prompt
       ]
@@ -307,6 +310,16 @@ defmodule SymphonyElixir.TestSupport do
       "  recent_workflow_runs: #{yaml_value(recent_workflow_runs)}"
     ]
     |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+  end
+
+  defp mcp_yaml(nil), do: nil
+
+  defp mcp_yaml(servers) do
+    [
+      "mcp:",
+      "  servers: #{yaml_value(servers)}"
+    ]
     |> Enum.join("\n")
   end
 

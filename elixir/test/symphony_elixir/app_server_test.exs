@@ -1025,6 +1025,133 @@ defmodule SymphonyElixir.AppServerTest do
     end
   end
 
+  test "app server executes configured MCP bridge tool calls and returns the tool result" do
+    test_root =
+      Path.join(
+        System.tmp_dir!(),
+        "symphony-elixir-app-server-mcp-bridge-tool-call-#{System.unique_integer([:positive])}"
+      )
+
+    try do
+      workspace_root = Path.join(test_root, "workspaces")
+      workspace = Path.join(workspace_root, "MT-90C")
+      codex_binary = Path.join(test_root, "fake-codex")
+      trace_file = Path.join(test_root, "codex-mcp-bridge-tool-call.trace")
+      previous_trace = System.get_env("SYMP_TEST_CODEx_TRACE")
+
+      on_exit(fn ->
+        if is_binary(previous_trace) do
+          System.put_env("SYMP_TEST_CODEx_TRACE", previous_trace)
+        else
+          System.delete_env("SYMP_TEST_CODEx_TRACE")
+        end
+      end)
+
+      System.put_env("SYMP_TEST_CODEx_TRACE", trace_file)
+      File.mkdir_p!(workspace)
+
+      File.write!(codex_binary, """
+      #!/bin/sh
+      trace_file="${SYMP_TEST_CODEx_TRACE:-/tmp/codex-mcp-bridge-tool-call.trace}"
+      count=0
+      while IFS= read -r line; do
+        count=$((count + 1))
+        printf 'JSON:%s\\n' "$line" >> "$trace_file"
+
+        case "$count" in
+          1)
+            printf '%s\\n' '{"id":1,"result":{}}'
+            ;;
+          2)
+            ;;
+          3)
+            printf '%s\\n' '{"id":2,"result":{"thread":{"id":"thread-90c"}}}'
+            ;;
+          4)
+            printf '%s\\n' '{"id":3,"result":{"turn":{"id":"turn-90c"}}}'
+            printf '%s\\n' '{\"id\":104,\"method\":\"item/tool/call\",\"params\":{\"name\":\"todoist_find_tasks\",\"callId\":\"call-90c\",\"threadId\":\"thread-90c\",\"turnId\":\"turn-90c\",\"arguments\":{\"query\":\"p1\"}}}'
+            ;;
+          5)
+            printf '%s\\n' '{\"method\":\"turn/completed\"}'
+            exit 0
+            ;;
+          *)
+            exit 0
+            ;;
+        esac
+      done
+      """)
+
+      File.chmod!(codex_binary, 0o755)
+
+      write_workflow_file!(Workflow.workflow_file_path(),
+        workspace_root: workspace_root,
+        codex_command: "#{codex_binary} app-server",
+        mcp_servers: %{
+          "todoist" => %{
+            "transport" => "streamable_http",
+            "url" => "https://ai.todoist.net/mcp",
+            "allowed_tools" => [
+              %{
+                "name" => "todoist_find_tasks",
+                "description" => "Find Todoist tasks."
+              }
+            ]
+          }
+        }
+      )
+
+      issue = %Issue{
+        id: "issue-mcp-bridge-tool-call",
+        identifier: "MT-90C",
+        title: "Supported MCP bridge tool call",
+        description: "Ensure configured MCP bridge tools return tool output",
+        state: "In Progress",
+        url: "https://example.org/issues/MT-90C",
+        labels: ["backend"]
+      }
+
+      test_pid = self()
+
+      assert {:ok, _result} =
+               AppServer.run(workspace, "Handle MCP bridge tool calls", issue,
+                 mcp_executor: fn registration, arguments ->
+                   send(test_pid, {:mcp_executor_called, registration, arguments})
+
+                   {:ok, %{"items" => [%{"id" => "task-90c", "content" => "Draft bridge PR"}]}}
+                 end
+               )
+
+      assert_received {:mcp_executor_called,
+                       %{
+                         "server" => "todoist",
+                         "tool" => %{"name" => "todoist_find_tasks"}
+                       }, %{"query" => "p1"}}
+
+      trace = File.read!(trace_file)
+      lines = String.split(trace, "\n", trim: true)
+
+      assert Enum.any?(lines, fn line ->
+               if String.starts_with?(line, "JSON:") do
+                 payload =
+                   line
+                   |> String.trim_leading("JSON:")
+                   |> Jason.decode!()
+
+                 payload["id"] == 104 and
+                   get_in(payload, ["result", "success"]) == true and
+                   Jason.decode!(get_in(payload, ["result", "output"])) == %{
+                     "items" => [%{"id" => "task-90c", "content" => "Draft bridge PR"}]
+                   }
+               else
+                 false
+               end
+             end)
+    after
+      File.rm_rf(test_root)
+    end
+  end
+
   test "app server emits tool_call_failed for supported tool failures" do
     test_root =
       Path.join(

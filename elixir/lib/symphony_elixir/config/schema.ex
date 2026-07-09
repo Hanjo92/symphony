@@ -287,6 +287,26 @@ defmodule SymphonyElixir.Config.Schema do
     end
   end
 
+  defmodule Mcp do
+    @moduledoc false
+    use Ecto.Schema
+    import Ecto.Changeset
+
+    alias SymphonyElixir.Codex.McpRegistry
+
+    @primary_key false
+    embedded_schema do
+      field(:servers, :map, default: %{})
+    end
+
+    @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
+    def changeset(schema, attrs) do
+      schema
+      |> cast(attrs, [:servers], empty_values: [])
+      |> update_change(:servers, &McpRegistry.normalize_servers/1)
+    end
+  end
+
   embedded_schema do
     embeds_one(:tracker, Tracker, on_replace: :update, defaults_to_struct: true)
     embeds_one(:polling, Polling, on_replace: :update, defaults_to_struct: true)
@@ -298,6 +318,7 @@ defmodule SymphonyElixir.Config.Schema do
     embeds_one(:observability, Observability, on_replace: :update, defaults_to_struct: true)
     embeds_one(:server, Server, on_replace: :update, defaults_to_struct: true)
     embeds_one(:github, GitHub, on_replace: :update, defaults_to_struct: true)
+    embeds_one(:mcp, Mcp, on_replace: :update, defaults_to_struct: true)
   end
 
   @spec parse(map()) :: {:ok, %__MODULE__{}} | {:error, {:invalid_workflow_config, String.t()}}
@@ -406,6 +427,7 @@ defmodule SymphonyElixir.Config.Schema do
     |> cast_embed(:observability, with: &Observability.changeset/2)
     |> cast_embed(:server, with: &Server.changeset/2)
     |> cast_embed(:github, with: &GitHub.changeset/2)
+    |> cast_embed(:mcp, with: &Mcp.changeset/2)
   end
 
   defp finalize_settings(settings) do
@@ -441,7 +463,7 @@ defmodule SymphonyElixir.Config.Schema do
         repo: resolve_secret_setting(settings.github.repo, System.get_env("GITHUB_REPOSITORY"))
     }
 
-    %{settings | tracker: tracker, workspace: workspace, codex: codex, github: github}
+    %{settings | tracker: tracker, workspace: workspace, codex: codex, github: github, mcp: settings.mcp}
   end
 
   defp normalize_keys(value) when is_map(value) do
